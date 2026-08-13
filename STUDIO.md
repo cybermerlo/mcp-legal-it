@@ -85,3 +85,5 @@ di `run_server.py`. Fa le stesse cose, più:
   `atti` è fuori dal preset.
 
 <!-- deploy automatico verificato dal server il 2026-08-13 -->
+
+<!-- collaudo webhook 2026-08-13 -->
