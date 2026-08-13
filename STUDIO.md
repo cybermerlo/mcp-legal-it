@@ -84,6 +84,39 @@ di `run_server.py`. Fa le stesse cose, più:
   file è irraggiungibile. Servirebbe un endpoint di download. Per questo il tag
   `atti` è fuori dal preset.
 
-<!-- deploy automatico verificato dal server il 2026-08-13 -->
+## 4. Testo integrale delle sentenze dal PDF ufficiale (Italgiure)
 
-<!-- collaudo webhook 2026-08-13 -->
+**Il problema.** Il campo `ocr` dell'indice pubblico SentenzeWeb e' **troncato alla
+fonte**, e il taglio cade in coda — cioe' dentro il P.Q.M. Su 30 sentenze civili
+campionate il 2026-08-13, **29 finivano a meta' parola**. Per Cass. civ. sez. III
+n. 29253/2024 l'indice si fermava a:
+
+> «...il procedimento speciale di intimazione di sfratto per **mo**
+
+mentre il principio di diritto per intero e':
+
+> «...il procedimento speciale di intimazione di sfratto per morosita' di cui
+> all'art. 658 c.p.c. **e' applicabile anche al contratto di affitto di azienda**
+> (o di ramo di azienda) che comprenda uno o piu' beni immobili».
+
+Cioe' spariva esattamente la regola di diritto: l'unica cosa che si cita in un atto.
+
+**La soluzione.** `leggi_sentenza` ora scarica il **PDF ufficiale** e ne estrae il
+testo (`pypdf`), usandolo al posto dell'indice quando e' almeno altrettanto
+completo. Il PDF e' pubblico e senza credenziali come il resto di SentenzeWeb.
+
+- L'URL non si indovina: il documento Solr porta un campo **`filename`** col
+  percorso esatto. Unica accortezza, l'estensione va portata a `.clean.pdf` —
+  con `.pdf` l'endpoint risponde 500 (verificato su civile e penale).
+- L'output dichiara sempre **`Fonte del testo`**: `PDF ufficiale (testo integrale)`
+  oppure `indice SentenzeWeb`, in quest'ultimo caso con l'avviso del troncamento.
+- Il link al PDF e' in fondo alla risposta, per il riscontro da tenere agli atti.
+- Se il PDF non arriva o non e' leggibile si ripiega sull'indice: **il tool non
+  fallisce mai per questo**.
+- Il campo `ocrdis` (dispositivo) e' troncato allo stesso modo: quando si sta
+  gia' servendo il PDF, la sezione "Dispositivo" viene omessa invece di ripetere
+  un testo mozzato che ingannerebbe chi legge solo quella.
+
+**Limite che resta**: l'archivio pubblico copre **dal 2021 in avanti** (civile
+188.630 provvedimenti, penale 236.093). Prima del 2021 non c'e' nulla, e non ci
+sono ne' le massime del CED ne' la giurisprudenza di merito.

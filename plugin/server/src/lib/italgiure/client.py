@@ -19,6 +19,9 @@ _BASE = "https://www.italgiure.giustizia.it/sncass"
 _SOLR_URL = f"{_BASE}/isapi/hc.dll/sn.solr/sn-collection/select?app.query"
 _HOMEPAGE = f"{_BASE}/"
 
+# [fork] Endpoint del PDF ufficiale del provvedimento — vedi fetch_pdf_text().
+_PDF_URL = "https://www.italgiure.giustizia.it/xway/application/nif/clean/hc.dll"
+
 _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -38,6 +41,8 @@ _KIND_FILTER = {
 TIPO_PROV = {"sentenza": "Sentenza", "ordinanza": "Ordinanza", "decreto": "Decreto"}
 
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+# [fork] Il PDF pesa qualche centinaio di KB: piu' largo del timeout delle query.
+_PDF_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 _MAX_OCR_LENGTH = 30000
 
 _FACET_FIELDS = ["materia", "szdec", "anno", "tipoprov"]
@@ -137,6 +142,76 @@ class SolrSession:
         body = urllib.parse.urlencode({**params, "wt": "json", "indent": "off"}, doseq=True)
         resp = await retry_request(self._client, "POST", _SOLR_URL, content=body)
         return resp.json()
+
+
+def build_pdf_url(doc: dict) -> str | None:
+    """[fork] URL del PDF ufficiale del provvedimento, ricavato dai campi Solr.
+
+    Il documento porta un campo ``filename`` con il percorso esatto
+    (``./20241113/snciv@s30@a2024@n29253@tS.pdf``): non va indovinato nulla.
+    L'unica accortezza e' l'estensione — l'endpoint serve la variante
+    ``.clean.pdf``; con ``.pdf`` risponde 500 (verificato su civile e penale).
+    """
+    filename = _first(doc.get("filename", ""))
+    kind = _first(doc.get("kind", ""))
+    if not filename or not kind:
+        return None
+    if filename.endswith(".pdf") and not filename.endswith(".clean.pdf"):
+        filename = filename[: -len(".pdf")] + ".clean.pdf"
+    query = urllib.parse.urlencode({"verbo": "attach", "db": kind, "id": filename})
+    return f"{_PDF_URL}?{query}"
+
+
+def looks_truncated(text: str) -> bool:
+    """[fork] True se il testo si interrompe a meta' frase.
+
+    Il campo ``ocr`` dell'indice pubblico e' quasi sempre tagliato in coda: su 30
+    sentenze civili campionate il 2026-08-13, 29 finivano a meta' parola — e il
+    taglio cade proprio nel P.Q.M., cioe' sul principio di diritto. Un testo
+    integro finisce con punteggiatura, una virgoletta di chiusura o una data.
+    """
+    if not text:
+        return False
+    return not re.search(r"[.!?»)\]\d]\s*$", text.rstrip())
+
+
+async def fetch_pdf_text(doc: dict, session: SolrSession | None = None) -> str | None:
+    """[fork] Scarica il PDF ufficiale ed estrae il testo. None se non ci riesce.
+
+    Perche' serve: il testo indicizzato in Solr e' troncato alla fonte. Per
+    Cass. civ. sez. III n. 29253/2024 l'indice si ferma a "...sfratto per mo",
+    mentre il PDF contiene il principio di diritto per intero. E' la differenza
+    fra una citazione utilizzabile e una mutila.
+
+    Non solleva mai: se il PDF non arriva o pypdf non riesce a leggerlo, si
+    ripiega sul testo indicizzato (meglio troncato che niente).
+    """
+    url = build_pdf_url(doc)
+    if not url:
+        return None
+    try:
+        import io
+
+        import pypdf
+
+        client = session._client if session and session._client else None
+        if client is not None:
+            resp = await client.get(url, timeout=_PDF_TIMEOUT)
+        else:
+            async with httpx.AsyncClient(
+                verify=False, timeout=_PDF_TIMEOUT, headers=_HEADERS
+            ) as tmp:
+                resp = await tmp.get(url)
+        if resp.status_code != 200 or not resp.content.startswith(b"%PDF"):
+            return None
+        reader = pypdf.PdfReader(io.BytesIO(resp.content))
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        text = re.sub(r"[ \t]+\n", "\n", text).strip()
+        # La Cassazione stampa questa dicitura su ogni pagina del PDF.
+        text = re.sub(r"\s*Corte di Cassazione - copia non ufficiale\s*", "\n", text)
+        return text.strip() or None
+    except Exception:
+        return None
 
 
 async def solr_query(params: dict, session: SolrSession | None = None) -> dict:
@@ -397,7 +472,7 @@ def build_lookup_params(
     return {
         "q": q,
         "rows": 5,
-        "fl": "id,numdec,anno,datdep,szdec,materia,tipoprov,ocr,ocrdis,relatore,presidente,kind",
+        "fl": "id,numdec,anno,datdep,szdec,materia,tipoprov,ocr,ocrdis,relatore,presidente,kind,filename",
     }
 
 
@@ -511,7 +586,14 @@ def format_summary(doc: dict, highlights: dict[str, list[str]] | None = None) ->
     return "\n".join(lines)
 
 
-def format_full_text(doc: dict) -> str:
+def format_full_text(doc: dict, pdf_text: str | None = None) -> str:
+    """Formatta il provvedimento.
+
+    [fork] Se ``pdf_text`` e' disponibile ha la precedenza sul campo ``ocr``
+    dell'indice, che e' troncato alla fonte (vedi fetch_pdf_text). La riga
+    **Fonte del testo** dice sempre da dove arriva ciò che si sta leggendo: per
+    un uso professionale la differenza è tutt'altro che accademica.
+    """
     estremi = format_estremi(doc)
     materia = _first(doc.get("materia", ""))
     relatore = _first(doc.get("relatore", ""))
@@ -526,20 +608,41 @@ def format_full_text(doc: dict) -> str:
         lines.append(f"**Relatore**: {relatore}")
     if presidente:
         lines.append(f"**Presidente**: {presidente}")
+
+    # [fork] usa il PDF solo se aggiunge davvero qualcosa rispetto all'indice
+    usa_pdf = bool(pdf_text) and len(pdf_text or "") >= len(ocr)
+    if usa_pdf:
+        lines.append("**Fonte del testo**: PDF ufficiale (testo integrale)")
+    elif ocr:
+        nota = "indice SentenzeWeb"
+        if looks_truncated(ocr):
+            nota += " — ⚠️ **il testo risulta troncato in coda**: per la parte finale (spesso il principio di diritto) consultare il PDF ufficiale"
+        lines.append(f"**Fonte del testo**: {nota}")
     lines.append("")
 
-    if ocr:
-        truncated = len(ocr) > _MAX_OCR_LENGTH
-        text = ocr[:_MAX_OCR_LENGTH] if truncated else ocr
+    testo = pdf_text if usa_pdf else ocr
+    if testo:
+        truncated = len(testo) > _MAX_OCR_LENGTH
+        text = testo[:_MAX_OCR_LENGTH] if truncated else testo
         lines.append("## Testo della decisione")
         lines.append(text)
         if truncated:
             lines.append(
-                f"\n---\n*[Testo troncato a {_MAX_OCR_LENGTH} caratteri su {len(ocr)} totali]*"
+                f"\n---\n*[Testo troncato a {_MAX_OCR_LENGTH} caratteri su {len(testo)} totali]*"
             )
 
-    if ocrdis:
+    # [fork] Anche ocrdis e' troncato alla fonte. Se il testo integrale c'e' gia'
+    # (dal PDF), ripetere qui un dispositivo mozzato non aggiunge nulla e anzi
+    # inganna chi legge solo questa sezione: la si omette. Se invece stiamo
+    # servendo l'indice, la si mostra ma segnalandone il taglio.
+    if ocrdis and not (usa_pdf and looks_truncated(ocrdis)):
         lines.append("\n## Dispositivo")
         lines.append(ocrdis)
+        if looks_truncated(ocrdis):
+            lines.append("*[⚠️ dispositivo troncato nell'indice — vedi il PDF ufficiale]*")
+
+    url_pdf = build_pdf_url(doc)
+    if url_pdf:
+        lines.append(f"\n---\n*PDF ufficiale: {url_pdf}*")
 
     return "\n".join(lines)

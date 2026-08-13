@@ -19,6 +19,7 @@ from src.lib.italgiure.client import (
     build_norma_variants,
     build_search_params,
     format_facets,
+    fetch_pdf_text,
     format_full_text,
     format_summary,
     get_kind_filter,
@@ -136,7 +137,8 @@ async def _leggi_sentenza_impl(
             data = await solr_query(params, session=session)
             docs = data.get("response", {}).get("docs", [])
             if docs:
-                return SearchResult(success=True, source="italgiure", num_found=1, results_text=format_full_text(docs[0]))
+                pdf = await fetch_pdf_text(docs[0], session=session)
+                return SearchResult(success=True, source="italgiure", num_found=1, results_text=format_full_text(docs[0], pdf_text=pdf))
 
             # Step 2: Retry without sezione filter (if provided)
             if sezione:
@@ -144,7 +146,8 @@ async def _leggi_sentenza_impl(
                 data = await solr_query(params, session=session)
                 docs = data.get("response", {}).get("docs", [])
                 if docs:
-                    return SearchResult(success=True, source="italgiure", num_found=1, results_text=format_full_text(docs[0]))
+                    pdf = await fetch_pdf_text(docs[0], session=session)
+                    return SearchResult(success=True, source="italgiure", num_found=1, results_text=format_full_text(docs[0], pdf_text=pdf))
 
             # Step 3: Retry with raw number (no zero-padding)
             kinds = get_kind_filter(archivio)
@@ -152,12 +155,13 @@ async def _leggi_sentenza_impl(
             raw_params = {
                 "q": f"({kind_clause}) AND numdec:{numero} AND anno:{anno}",
                 "rows": 5,
-                "fl": "id,numdec,anno,datdep,szdec,materia,tipoprov,ocr,ocrdis,relatore,presidente,kind",
+                "fl": "id,numdec,anno,datdep,szdec,materia,tipoprov,ocr,ocrdis,relatore,presidente,kind,filename",
             }
             data = await solr_query(raw_params, session=session)
             docs = data.get("response", {}).get("docs", [])
             if docs:
-                return SearchResult(success=True, source="italgiure", num_found=1, results_text=format_full_text(docs[0]))
+                pdf = await fetch_pdf_text(docs[0], session=session)
+                return SearchResult(success=True, source="italgiure", num_found=1, results_text=format_full_text(docs[0], pdf_text=pdf))
 
             # Step 4: Full-text search for "n. {numero}/{anno}"
             ft_query = f'"n. {numero}/{anno}" OR "n. {numero} del {anno}"'
@@ -173,7 +177,8 @@ async def _leggi_sentenza_impl(
                 numdec_candidates = {str(numero), str(numero).zfill(5)}
                 for doc in docs:
                     if str(doc.get("numdec")) in numdec_candidates and str(doc.get("anno")) == str(anno):
-                        return SearchResult(success=True, source="italgiure", num_found=1, results_text=format_full_text(doc))
+                        pdf = await fetch_pdf_text(doc, session=session)
+                        return SearchResult(success=True, source="italgiure", num_found=1, results_text=format_full_text(doc, pdf_text=pdf))
 
     except Exception as exc:
         return SearchResult(success=False, source="italgiure", error_type="source_down", error_message=str(exc))
