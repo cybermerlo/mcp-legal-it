@@ -83,3 +83,5 @@ di `run_server.py`. Fa le stesse cose, più:
   **dentro il container** e restituiscono un path del filesystem: da remoto quel
   file è irraggiungibile. Servirebbe un endpoint di download. Per questo il tag
   `atti` è fuori dal preset.
+
+<!-- deploy automatico verificato dal server il 2026-08-13 -->
