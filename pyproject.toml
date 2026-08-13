@@ -9,7 +9,7 @@ description = "MCP server with 218 Italian legal tools: calculations, legislatio
 license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
 dependencies = [
-    "fastmcp>=2.0,<4",
+    "fastmcp>=2.11,<3",   # [fork] pin: con 3.x include_tags non esiste piu' e il filtro dei tool viene ignorato in silenzio (vedi STUDIO.md)
     "httpx>=0.27",
     "beautifulsoup4>=4.12",
     "lxml>=5.0",
