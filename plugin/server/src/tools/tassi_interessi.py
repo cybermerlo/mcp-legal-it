@@ -132,12 +132,23 @@ def interessi_legali(
 
     Applica la regola "dies a quo non computatur": il giorno iniziale non matura interessi.
     Tasso legale variabile per anno, letto dalla tabella ministeriale aggiornata — per interessi in corso di causa usare interessi_corso_causa.
+
+    ⚠️ DEBITI DI VALORE (danno alla persona, risarcimento da illecito): NON passare come
+    `capitale` la somma INTERAMENTE rivalutata all'attualita'. E' la sovra-compensazione
+    censurata da Cass. SS.UU. 1712/1995: gli interessi compensativi vanno calcolati sulla
+    somma PROGRESSIVAMENTE rivalutata anno per anno oppure, in via semplificata, sul VALORE
+    MEDIO fra la somma originaria e quella rivalutata:
+        capitale = (somma_originaria + somma_rivalutata) / 2
+    L'errore da evitare e' la BASE di calcolo, non il tasso (il saggio e' equitativo e il
+    tasso legale e' un proxy accettabile). Per i debiti di valuta (es. un credito contrattuale
+    gia' liquido) l'avvertenza non si applica: li' la base e' il capitale nominale.
     Vigenza: Art. 1284 c.c.; tassi aggiornati annualmente con DM MEF (dal 1° gennaio di ogni anno).
     Precisione: ESATTO per tassi legali storici (dati tabellari ministeriali).
     Spesso chiamato come ultimo step nel workflow sinistro dopo rivalutazione_monetaria().
 
     Args:
-        capitale: Importo del capitale in euro (€)
+        capitale: Importo del capitale in euro (€). Per i debiti di valore: base media o
+                  progressivamente rivalutata, NON il rivalutato pieno (vedi sopra)
         data_inizio: Data inizio decorrenza interessi (formato YYYY-MM-DD)
         data_fine: Data fine decorrenza interessi (formato YYYY-MM-DD)
         tipo: Tipo di capitalizzazione: 'semplici' (default) o 'composti'
@@ -275,7 +286,8 @@ def interessi_tasso_fisso(
     Precisione: ESATTO (calcolo matematico sul tasso fornito); INDICATIVO se il tasso è stimato.
 
     Args:
-        capitale: Importo del capitale in euro (€)
+        capitale: Importo del capitale in euro (€). Per i debiti di valore: base media o
+                  progressivamente rivalutata, NON il rivalutato pieno (vedi sopra)
         tasso_annuo: Tasso annuo percentuale (es. 3.5 per 3,5%)
         data_inizio: Data inizio maturazione interessi (formato YYYY-MM-DD)
         data_fine: Data fine maturazione interessi (formato YYYY-MM-DD)

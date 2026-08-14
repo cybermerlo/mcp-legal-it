@@ -19,10 +19,10 @@ class TestDannoBiologicoMicro:
         res = _call("danno_biologico_micro", percentuale_invalidita=1, eta_vittima=30)
         assert res["percentuale_invalidita"] == 1
         assert res["eta_vittima"] == 30
-        # punto_base=963.40, coeff[1]=1.0, riduzione=0.90 (eta 30 → anni_sopra=20 → 1-0.005*20) → 867.06
-        assert res["danno_permanente"] == pytest.approx(867.06, abs=0.01)
+        # DM 2026: punto_base=988.45, coeff[1]=1.0, N=1, riduzione=0.90 → 889.61
+        assert res["danno_permanente"] == pytest.approx(889.61, abs=0.01)
         assert res["danno_temporaneo"]["totale"] == 0.0
-        assert res["totale_risarcimento"] == pytest.approx(867.06, abs=0.01)
+        assert res["totale_risarcimento"] == pytest.approx(889.61, abs=0.01)
         assert "Art. 139" in res["riferimento_normativo"]
 
     def test_invalidita_5_eta_10_con_itt(self):
@@ -34,8 +34,8 @@ class TestDannoBiologicoMicro:
             giorni_itt=10,
         )
         assert res["riduzione_eta"] == pytest.approx(1.0)
-        # ITT: 10 * 56.18 = 561.80
-        assert res["danno_temporaneo"]["itt"]["importo"] == pytest.approx(561.80, abs=0.01)
+        # ITT: 10 * 57.64 = 576.40 (DM 20 luglio 2026)
+        assert res["danno_temporaneo"]["itt"]["importo"] == pytest.approx(576.40, abs=0.01)
 
     def test_invalidita_9_eta_0_tutte_componenti_temporanee(self):
         res = _call(
@@ -51,8 +51,8 @@ class TestDannoBiologicoMicro:
         assert res["danno_temporaneo"]["itp_75"]["giorni"] == 3
         assert res["danno_temporaneo"]["itp_50"]["giorni"] == 2
         assert res["danno_temporaneo"]["itp_25"]["giorni"] == 1
-        # itp_25 = 1 * 14.05
-        assert res["danno_temporaneo"]["itp_25"]["importo"] == pytest.approx(14.05, abs=0.01)
+        # itp_25 = 1 * 14.41 (25% di 57.64, art. 139 c. 1 lett. b)
+        assert res["danno_temporaneo"]["itp_25"]["importo"] == pytest.approx(14.41, abs=0.01)
 
     def test_riduzione_eta_oltre_decremento(self):
         # età 30 → anni_sopra=20, riduzione = 1 - 0.005*20 = 0.90
@@ -77,9 +77,20 @@ class TestDannoBiologicoMicro:
             res_si["danno_base"] * 0.10, abs=0.01
         )
 
-    def test_dettaglio_punti_lunghezza(self):
-        res = _call("danno_biologico_micro", percentuale_invalidita=4, eta_vittima=25)
-        assert len(res["dettaglio_punti"]) == 4
+    def test_dettaglio_punti_una_sola_riga(self):
+        """Art. 139 c. 6: UN coefficiente per il grado complessivo, non uno per punto."""
+        res = _call("danno_biologico_micro", percentuale_invalidita=7, eta_vittima=20)
+        assert len(res["dettaglio_punti"]) == 1
+        assert res["dettaglio_punti"][0]["percentuale"] == 7
+        assert res["dettaglio_punti"][0]["coefficiente"] == 1.9
+
+    def test_formula_moltiplicativa_non_somma(self):
+        """La vecchia formula sommava i valori dei singoli punti: sul 9% dava un terzo in meno."""
+        res = _call("danno_biologico_micro", percentuale_invalidita=9, eta_vittima=40)
+        atteso = 988.45 * 2.3 * 9 * 0.85
+        assert res["danno_permanente"] == pytest.approx(atteso, abs=0.01)
+        somma_vecchia = 988.45 * (1.0+1.1+1.2+1.3+1.5+1.7+1.9+2.1+2.3) * 0.85
+        assert res["danno_permanente"] > somma_vecchia * 1.3
 
     def test_errore_percentuale_zero(self):
         res = _call("danno_biologico_micro", percentuale_invalidita=0, eta_vittima=30)
@@ -137,15 +148,29 @@ class TestDannoBiologicoMacro:
         res = _call("danno_biologico_macro", percentuale_invalidita=12, eta_vittima=35)
         assert res["punto_base_interpolato"] == pytest.approx(3128.0, abs=1.0)
 
-    def test_personalizzazione_50pct(self):
+    def test_personalizzazione_30pct(self):
+        """Art. 138 c. 3: tetto al 30%."""
         res = _call(
             "danno_biologico_macro",
             percentuale_invalidita=20,
-            eta_vittima=30,
-            personalizzazione_pct=50.0,
+            eta_vittima=40,
+            personalizzazione_pct=30.0,
         )
-        assert res["maggiorazione_morale"] == pytest.approx(res["danno_base"] * 0.50, abs=0.01)
-        assert res["totale_risarcimento"] == pytest.approx(res["danno_base"] * 1.50, abs=0.01)
+        assert res["maggiorazione_morale"] == pytest.approx(res["danno_base"] * 0.30, abs=0.01)
+        assert res["totale_risarcimento"] == pytest.approx(res["danno_base"] * 1.30, abs=0.01)
+
+    def test_personalizzazione_oltre_30_rifiutata(self):
+        res = _call(
+            "danno_biologico_macro",
+            percentuale_invalidita=20,
+            eta_vittima=40,
+            personalizzazione_pct=31.0,
+        )
+        assert "errore" in res
+
+    def test_dichiara_che_e_una_stima(self):
+        res = _call("danno_biologico_macro", percentuale_invalidita=50, eta_vittima=40)
+        assert "STIMA" in res["avvertenza"]
 
     def test_coefficiente_eta_0_10(self):
         res = _call("danno_biologico_macro", percentuale_invalidita=10, eta_vittima=5)
@@ -172,7 +197,7 @@ class TestDannoBiologicoMacro:
         res = _call("danno_biologico_macro", percentuale_invalidita=20, eta_vittima=-5)
         assert "errore" in res
 
-    def test_errore_personalizzazione_oltre_50(self):
+    def test_errore_personalizzazione_oltre_tetto(self):
         res = _call(
             "danno_biologico_macro",
             percentuale_invalidita=20,
@@ -196,109 +221,94 @@ class TestDannoBiologicoMacro:
 # ---------------------------------------------------------------------------
 
 class TestDannoParentale:
-    def test_milano_figlio_genitore_minimo(self):
-        res = _call(
-            "danno_parentale",
-            vittima="figlio",
-            superstite="genitore",
-            tabella="milano",
-            personalizzazione_pct=0.0,
-        )
-        assert res["importo_liquidato"] == pytest.approx(195551.59, abs=0.01)
+    """Sistema a punti (Cass. 10579/2021): Milano ed. 2022, Roma ed. 2025."""
 
-    def test_milano_figlio_genitore_massimo(self):
+    def test_milano_esempio_ufficiale_1(self):
+        """Madre 45 / figlio 15 convivente, 2 superstiti — Allegato 1, esempio 1."""
         res = _call(
             "danno_parentale",
-            vittima="figlio",
-            superstite="genitore",
+            eta_vittima=15,
+            eta_superstite=45,
             tabella="milano",
-            personalizzazione_pct=100.0,
+            convivenza="conviventi",
+            superstiti_nucleo=2,
+            punti_qualita_relazione=0,
         )
-        assert res["importo_liquidato"] == pytest.approx(391103.18, abs=0.01)
+        assert res["punti_totali"] == 74
+        assert res["importo_liquidato"] == pytest.approx(249010.00, abs=0.01)
 
-    def test_milano_figlio_genitore_mediano(self):
+    def test_milano_cap(self):
         res = _call(
             "danno_parentale",
-            vittima="figlio",
-            superstite="genitore",
+            eta_vittima=10,
+            eta_superstite=39,
             tabella="milano",
-            personalizzazione_pct=50.0,
+            convivenza="conviventi",
+            superstiti_nucleo=0,
+            punti_qualita_relazione=30,
         )
-        expected = (195551.59 + 391103.18) / 2
-        assert res["importo_liquidato"] == pytest.approx(expected, abs=0.01)
+        assert res["cap_applicato"] is True
+        assert res["importo_liquidato"] == pytest.approx(336500.00, abs=0.01)
 
-    def test_roma_coniuge_coniuge(self):
+    def test_milano_fratello_nipote_valore_punto(self):
         res = _call(
             "danno_parentale",
-            vittima="coniuge",
-            superstite="coniuge",
+            eta_vittima=30,
+            eta_superstite=35,
+            tabella="milano",
+            rapporto="fratello_nipote",
+            convivenza="conviventi",
+            superstiti_nucleo=1,
+        )
+        assert res["punti_totali"] == 68
+        assert res["importo_liquidato"] == pytest.approx(68 * 1461.20, abs=0.01)
+
+    def test_roma_2025(self):
+        res = _call(
+            "danno_parentale",
+            eta_vittima=15,
+            eta_superstite=45,
             tabella="roma",
+            relazione_roma="figlio",
+            convivenza="conviventi",
         )
-        assert "importo_liquidato" in res
-        assert res["tabella"] == "roma"
+        # 18 (figlio) + 4.5 (vittima 11-20) + 3 (congiunto 41-50) + 4 (convivenza)
+        assert res["punti_totali"] == pytest.approx(29.5, abs=0.001)
+        assert res["importo_liquidato"] == pytest.approx(29.5 * 11549.20, abs=0.01)
 
-    def test_milano_fratello_fratello(self):
+    def test_roma_elenca_i_correttivi_non_applicati(self):
         res = _call(
             "danno_parentale",
-            vittima="fratello",
-            superstite="fratello",
-            tabella="milano",
-            personalizzazione_pct=0.0,
+            eta_vittima=15,
+            eta_superstite=45,
+            tabella="roma",
+            relazione_roma="figlio",
         )
-        assert res["importo_liquidato"] == pytest.approx(28301.23, abs=0.01)
-
-    def test_tabella_case_insensitive(self):
-        res = _call(
-            "danno_parentale",
-            vittima="Coniuge",
-            superstite="Coniuge",
-            tabella="MILANO",
-        )
-        assert "importo_liquidato" in res
+        assert len(res["correttivi_NON_applicati"]) >= 3
 
     def test_errore_tabella_invalida(self):
+        res = _call("danno_parentale", eta_vittima=40, eta_superstite=40, tabella="firenze")
+        assert "errore" in res
+
+    def test_errore_roma_senza_relazione(self):
+        res = _call("danno_parentale", eta_vittima=40, eta_superstite=40, tabella="roma")
+        assert "errore" in res
+        assert "valori_ammessi" in res
+
+    def test_errore_rapporto_milano_invalido(self):
         res = _call(
-            "danno_parentale",
-            vittima="figlio",
-            superstite="genitore",
-            tabella="napoli",
+            "danno_parentale", eta_vittima=40, eta_superstite=40,
+            tabella="milano", rapporto="cugino",
         )
         assert "errore" in res
 
-    def test_errore_rapporto_non_trovato(self):
+    def test_errore_punti_qualita_fuori_range(self):
         res = _call(
-            "danno_parentale",
-            vittima="zio",
-            superstite="nipote",
-            tabella="milano",
-        )
-        assert "errore" in res
-        assert "rapporti_disponibili" in res
-
-    def test_errore_personalizzazione_oltre_100(self):
-        res = _call(
-            "danno_parentale",
-            vittima="figlio",
-            superstite="genitore",
-            tabella="milano",
-            personalizzazione_pct=101.0,
+            "danno_parentale", eta_vittima=40, eta_superstite=40,
+            tabella="milano", punti_qualita_relazione=31,
         )
         assert "errore" in res
 
-    def test_errore_personalizzazione_negativa(self):
-        res = _call(
-            "danno_parentale",
-            vittima="figlio",
-            superstite="genitore",
-            tabella="milano",
-            personalizzazione_pct=-1.0,
-        )
-        assert "errore" in res
-
-
-# ---------------------------------------------------------------------------
-# menomazioni_plurime
-# ---------------------------------------------------------------------------
 
 class TestMenomazioni:
     def test_due_menomazioni_classico(self):
@@ -491,49 +501,71 @@ class TestDannoNonPatrimoniale:
             eta_vittima=30,
             giorni_itt=20,
         )
-        # ITT 20 * 56.18 = 1123.6
-        assert res["componenti"]["danno_patrimoniale_emergente"]["itt"]["importo"] == pytest.approx(1123.6, abs=0.01)
+        # ITT 20 * 57.64 = 1152.80 (DM 20 luglio 2026)
+        assert res["componenti"]["danno_patrimoniale_emergente"]["itt"]["importo"] == pytest.approx(1152.80, abs=0.01)
 
-    def test_danno_morale_percentuale(self):
+    def test_morale_ed_esistenziale_confluiscono_in_una_personalizzazione(self):
+        """Cass. SS.UU. 26972/2008: non sono poste autonome da sommare."""
         res = _call(
             "danno_non_patrimoniale",
-            percentuale_invalidita=5,
-            eta_vittima=30,
-            danno_morale_pct=25.0,
+            percentuale_invalidita=6,
+            eta_vittima=40,
+            danno_morale_pct=10.0,
+            danno_esistenziale_pct=5.0,
         )
-        bio = res["componenti"]["danno_biologico"]
-        morale = res["componenti"]["danno_morale"]["importo"]
-        assert morale == pytest.approx(bio * 0.25, abs=0.01)
+        c = res["componenti"]
+        assert "danno_morale" not in c and "danno_esistenziale" not in c
+        pers = c["personalizzazione_unitaria"]
+        assert pers["richiesta_pct"] == pytest.approx(15.0)
+        assert pers["applicata_pct"] == pytest.approx(15.0)
+        assert pers["importo"] == pytest.approx(c["danno_biologico"] * 0.15, abs=0.01)
 
-    def test_danno_esistenziale_percentuale(self):
+    def test_personalizzazione_ridotta_al_tetto_micro(self):
+        """Micro: tetto del 20% (art. 139 c. 3), anche se se ne chiede di piu'."""
         res = _call(
             "danno_non_patrimoniale",
-            percentuale_invalidita=5,
-            eta_vittima=30,
-            danno_esistenziale_pct=10.0,
+            percentuale_invalidita=6,
+            eta_vittima=40,
+            danno_morale_pct=40.0,
+            danno_esistenziale_pct=40.0,
         )
-        bio = res["componenti"]["danno_biologico"]
-        esistenziale = res["componenti"]["danno_esistenziale"]["importo"]
-        assert esistenziale == pytest.approx(bio * 0.10, abs=0.01)
+        pers = res["componenti"]["personalizzazione_unitaria"]
+        assert pers["richiesta_pct"] == pytest.approx(80.0)
+        assert pers["applicata_pct"] == pytest.approx(20.0)
+        assert pers["ridotta_al_tetto"] is True
 
-    def test_totale_e_somma_componenti(self):
+    def test_personalizzazione_ridotta_al_tetto_macro(self):
+        """Macro: tetto del 30% (art. 138 c. 3)."""
         res = _call(
             "danno_non_patrimoniale",
-            percentuale_invalidita=8,
-            eta_vittima=25,
-            giorni_itt=5,
+            percentuale_invalidita=25,
+            eta_vittima=40,
+            danno_morale_pct=30.0,
+            danno_esistenziale_pct=30.0,
+        )
+        assert res["componenti"]["personalizzazione_unitaria"]["applicata_pct"] == pytest.approx(30.0)
+
+    def test_avvertenza_interessi_presente(self):
+        res = _call("danno_non_patrimoniale", percentuale_invalidita=20, eta_vittima=40)
+        assert "1712/1995" in res["avvertenza_interessi"]
+
+    def test_totale_e_somma_delle_componenti(self):
+        res = _call(
+            "danno_non_patrimoniale",
+            percentuale_invalidita=20,
+            eta_vittima=40,
             spese_mediche=1000.0,
+            giorni_itt=10,
             danno_morale_pct=15.0,
             danno_esistenziale_pct=10.0,
         )
         c = res["componenti"]
-        expected = (
+        atteso = (
             c["danno_biologico"]
-            + c["danno_morale"]["importo"]
-            + c["danno_esistenziale"]["importo"]
+            + c["personalizzazione_unitaria"]["importo"]
             + c["danno_patrimoniale_emergente"]["totale"]
         )
-        assert res["totale_risarcimento"] == pytest.approx(expected, abs=0.01)
+        assert res["totale_risarcimento"] == pytest.approx(atteso, abs=0.01)
 
     def test_errore_percentuale_zero(self):
         res = _call(

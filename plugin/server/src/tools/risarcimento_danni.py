@@ -49,6 +49,25 @@ def _interpola_punto_base(percentuale: int) -> float:
     return punti[soglie[-1]]
 
 
+def _biologico_permanente(percentuale: int, eta: int) -> tuple[float, str]:
+    """Danno biologico permanente. UNICA implementazione della formula.
+
+    Prima esisteva anche una copia dentro danno_non_patrimoniale, che era rimasta
+    con la vecchia formula sbagliata (somma dei punti) anche dopo la correzione:
+    due copie della stessa regola sono due occasioni di sbagliare.
+    """
+    if percentuale <= 9:
+        riduzione = 1 - (_MICRO["decremento_eta_pct_per_anno"] / 100) * max(0, eta - _MICRO["eta_decremento_da"])
+        riduzione = max(riduzione, 0)
+        coeff = _MICRO["coefficienti_punto"][str(percentuale)]
+        # art. 139 c. 6: UN coefficiente per il grado complessivo, non la somma dei punti
+        return _MICRO["punto_base"] * coeff * percentuale * riduzione, "micropermanenti (art. 139)"
+    return (
+        _interpola_punto_base(percentuale) * percentuale * _coefficiente_eta(eta),
+        "macropermanenti (art. 138) — STIMA",
+    )
+
+
 @mcp.tool(tags={"danni"})
 def danno_biologico_micro(
     percentuale_invalidita: int,
@@ -107,7 +126,7 @@ def danno_biologico_micro(
     # ⚠️ Non e' la somma dei valori dei singoli punti: quella sottostimava fino al 34%
     #    (9% a 40 anni: 11.546 € invece di 17.392 €). Correzione del 2026-08-14.
     coeff = coefficienti[str(percentuale_invalidita)]
-    danno_permanente = punto_base * coeff * percentuale_invalidita * riduzione
+    danno_permanente, _ = _biologico_permanente(percentuale_invalidita, eta_vittima)
     dettaglio_punti = [{
         "percentuale": percentuale_invalidita,
         "coefficiente": coeff,
@@ -531,9 +550,14 @@ def danno_non_patrimoniale(
 ) -> dict:
     """Calcola il danno non patrimoniale complessivo con tutte le componenti in un unico prospetto.
 
-    Combina automaticamente danno biologico (micro se ≤9%, macro se ≥10%), danno morale
-    (personalizzazione), danno esistenziale e patrimoniale emergente (spese mediche + ITT).
-    Vigenza: art. 138-139 Cod. Assicurazioni; Tabelle Milano 2024; Cass. SU 26972/2008.
+    ⚠️ IL DANNO NON PATRIMONIALE E' UNITARIO (Cass. SS.UU. 26972/2008, "San Martino"):
+    biologico, morale ed esistenziale sono ASPETTI DI UN UNICO PREGIUDIZIO ex art. 2059 c.c.,
+    non poste autonome da sommare. Per questo danno_morale_pct e danno_esistenziale_pct non
+    generano due voci separate: confluiscono in UNA personalizzazione, entro il tetto
+    dell'articolo applicabile (20% micro, art. 139 c. 3; 30% macro, art. 138 c. 3).
+    ⚠️ Se poi attualizzi: NON calcolare gli interessi sul capitale interamente rivalutato
+    (Cass. SS.UU. 1712/1995) — vedi l'avvertenza in interessi_legali.
+    Vigenza: art. 138-139 Cod. Ass.; micropermanenti al DM 20 luglio 2026.
     Precisione: INDICATIVO (il danno biologico macro è interpolato; la personalizzazione
     morale ed esistenziale è soggetta a valutazione giudiziale discrezionale).
 
@@ -541,7 +565,8 @@ def danno_non_patrimoniale(
     NON usare per: solo danno biologico micro → usa danno_biologico_micro() (più dettagliato).
     NON usare per: solo danno biologico macro → usa danno_biologico_macro().
     NON usare per: danno da perdita del rapporto parentale → usa danno_parentale().
-    Chaining: → rivalutazione_monetaria() per attualizzare → interessi_legali() per gli interessi compensativi
+    Chaining: → rivalutazione_monetaria() per attualizzare → interessi_legali() sulla base
+    CORRETTA (somma progressivamente rivalutata o valore medio), non sul rivalutato pieno.
 
     Args:
         percentuale_invalidita: Percentuale di invalidità permanente (1-100)
@@ -549,8 +574,10 @@ def danno_non_patrimoniale(
         tipo_danno: Voce principale richiesta: 'biologico', 'morale', 'esistenziale', 'patrimoniale_emergente'
         giorni_itt: Giorni di invalidità temporanea totale al 100%
         spese_mediche: Spese mediche documentate in euro (€)
-        danno_morale_pct: Percentuale di personalizzazione per danno morale (0-50)
-        danno_esistenziale_pct: Percentuale di personalizzazione per danno esistenziale (0-50)
+        danno_morale_pct: Quota di personalizzazione per la sofferenza morale (si somma
+                  a quella esistenziale e il totale e' limitato al tetto di legge)
+        danno_esistenziale_pct: Quota di personalizzazione per lo stravolgimento della vita
+                  di relazione (idem: concorre alla stessa personalizzazione unitaria)
     """
     if not 1 <= percentuale_invalidita <= 100:
         return {"errore": "Percentuale invalidità deve essere tra 1 e 100"}
@@ -567,44 +594,28 @@ def danno_non_patrimoniale(
     if spese_mediche < 0:
         return {"errore": "spese_mediche non puo essere negativo"}
 
-    # Calcolo componente biologica (micro o macro)
-    if percentuale_invalidita <= 9:
-        punto_base = _MICRO["punto_base"]
-        coefficienti = _MICRO["coefficienti_punto"]
-        eta_inizio_decremento = _MICRO["eta_decremento_da"]
-        decremento_pct = _MICRO["decremento_eta_pct_per_anno"]
-
-        if eta_vittima >= eta_inizio_decremento:
-            anni_sopra = eta_vittima - eta_inizio_decremento
-            riduzione = max(1 - (decremento_pct / 100) * anni_sopra, 0)
-        else:
-            riduzione = 1.0
-
-        danno_biologico = 0.0
-        for p in range(1, percentuale_invalidita + 1):
-            danno_biologico += punto_base * coefficienti[str(p)] * riduzione
-
-        tipo_calcolo = "micropermanenti (art. 139)"
-    else:
-        punto_base = _interpola_punto_base(percentuale_invalidita)
-        coeff_eta = _coefficiente_eta(eta_vittima)
-        danno_biologico = punto_base * percentuale_invalidita * coeff_eta
-        tipo_calcolo = "macropermanenti (art. 138)"
+    # Calcolo componente biologica — formula condivisa con danno_biologico_micro/macro
+    danno_biologico, tipo_calcolo = _biologico_permanente(percentuale_invalidita, eta_vittima)
 
     # ITT
     itt_giornaliero = _MICRO["invalidita_temporanea_totale_giornaliera"]
     danno_itt = giorni_itt * itt_giornaliero
 
-    # Componente morale
-    danno_morale = danno_biologico * (danno_morale_pct / 100)
-
-    # Componente esistenziale
-    danno_esistenziale = danno_biologico * (danno_esistenziale_pct / 100)
+    # ⚠️ UNITARIETA' DEL DANNO NON PATRIMONIALE (Cass. SS.UU. 26972/2008, "San Martino").
+    # Prima morale ed esistenziale venivano calcolati separatamente e SOMMATI al biologico,
+    # fino a +100% complessivo: e' la duplicazione risarcitoria che le Sezioni Unite vietano.
+    # Morale ed esistenziale non sono poste autonome, ma aspetti di un unico pregiudizio:
+    # qui confluiscono in UNA personalizzazione, entro il tetto dell'articolo applicabile
+    # (art. 139 c. 3: 20% per le micro; art. 138 c. 3: 30% per le macro).
+    tetto_pers = _MICRO["maggiorazione_morale_max_pct"] if percentuale_invalidita <= 9 else 30.0
+    pers_richiesta = danno_morale_pct + danno_esistenziale_pct
+    pers_applicata = min(pers_richiesta, tetto_pers)
+    personalizzazione = danno_biologico * (pers_applicata / 100)
 
     # Patrimoniale emergente
     danno_patrimoniale = spese_mediche + danno_itt
 
-    totale = danno_biologico + danno_morale + danno_esistenziale + danno_patrimoniale
+    totale = danno_biologico + personalizzazione + danno_patrimoniale
 
     return {
         "percentuale_invalidita": percentuale_invalidita,
@@ -613,13 +624,16 @@ def danno_non_patrimoniale(
         "tipo_calcolo": tipo_calcolo,
         "componenti": {
             "danno_biologico": round(danno_biologico, 2),
-            "danno_morale": {
-                "personalizzazione_pct": danno_morale_pct,
-                "importo": round(danno_morale, 2),
-            },
-            "danno_esistenziale": {
-                "personalizzazione_pct": danno_esistenziale_pct,
-                "importo": round(danno_esistenziale, 2),
+            "personalizzazione_unitaria": {
+                "richiesta_pct": pers_richiesta,
+                "applicata_pct": pers_applicata,
+                "tetto_pct": tetto_pers,
+                "ridotta_al_tetto": pers_richiesta > tetto_pers,
+                "importo": round(personalizzazione, 2),
+                "nota": (
+                    "morale ed esistenziale NON sono poste autonome da sommare: confluiscono "
+                    "in questa personalizzazione (Cass. SS.UU. 26972/2008)"
+                ),
             },
             "danno_patrimoniale_emergente": {
                 "spese_mediche": round(spese_mediche, 2),
@@ -628,7 +642,14 @@ def danno_non_patrimoniale(
             },
         },
         "totale_risarcimento": round(totale, 2),
-        "riferimento_normativo": "Art. 138-139 Cod. Assicurazioni; Tabelle Milano 2024; Cass. SU 26972/2008",
+        "avvertenza_interessi": (
+            "Se attualizzi: NON calcolare gli interessi sul capitale interamente rivalutato "
+            "(sovra-compensazione censurata da Cass. SS.UU. 1712/1995). Vedi interessi_legali."
+        ),
+        "riferimento_normativo": (
+            "Art. 138-139 Cod. Assicurazioni; Cass. SS.UU. 26972/2008 (unitarieta' del danno "
+            "non patrimoniale); DM 20 luglio 2026 per i valori delle micropermanenti"
+        ),
     }
 
 

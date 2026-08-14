@@ -73,6 +73,12 @@ def rivalutazione_monetaria(
 ) -> dict:
     """Rivaluta un capitale con indici FOI ISTAT, con o senza interessi legali anno per anno.
 
+    ⚠️ Se il risultato serve per calcolare gli interessi compensativi su un debito di
+    valore, NON passarlo tal quale a interessi_legali: la base corretta e' la somma
+    progressivamente rivalutata o il valore medio fra originaria e rivalutata
+    (Cass. SS.UU. 1712/1995). Il campo `base_media_per_interessi` del risultato la
+    calcola gia'.
+
     Se con_interessi_legali=True, applica il criterio Cass. SU 1712/1995: interessi legali
     sul capitale rivalutato per ciascun anno (metodo più favorevole al creditore).
     Vigenza: Indici FOI ISTAT base 2015=100, disponibili dal 1947 al mese più recente pubblicato.
@@ -152,6 +158,17 @@ def rivalutazione_monetaria(
         "foi_fine": foi_fine,
         "coefficiente_rivalutazione": round(coefficiente, 6),
         "capitale_rivalutato": round(capitale_rivalutato, 2),
+        # ⚠️ Base corretta per gli interessi compensativi sui debiti di valore
+        # (Cass. SS.UU. 1712/1995): NON il rivalutato pieno, che sovra-compensa.
+        # Il dettaglio anno per anno in `dettaglio_anni` consente il calcolo progressivo,
+        # esatto; questa media e' la semplificazione ammessa dalle Sezioni Unite.
+        "base_media_per_interessi": round((capitale + capitale_rivalutato) / 2, 2),
+        "avvertenza_interessi": (
+            "Per gli interessi compensativi su un debito di valore passa a interessi_legali "
+            "`base_media_per_interessi` (o calcola sul progressivo con dettaglio_anni), NON "
+            "`capitale_rivalutato`: sarebbe la sovra-compensazione censurata da Cass. SS.UU. "
+            "1712/1995. Per i debiti di valuta l'avvertenza non si applica."
+        ),
         "dettaglio_anni": dettaglio_anni,
     }
 

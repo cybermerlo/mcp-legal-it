@@ -205,12 +205,15 @@ class TestDannoNonPatrimoniale:
         assert r["componenti"]["danno_patrimoniale_emergente"]["spese_mediche"] == 1000.0
 
     def test_macro_20pct(self):
+        """Morale ed esistenziale confluiscono in una personalizzazione unitaria
+        (Cass. SS.UU. 26972/2008), entro il 30% dell'art. 138 c. 3."""
         r = _call("danno_non_patrimoniale", percentuale_invalidita=20, eta_vittima=40,
                    danno_morale_pct=30)
         assert "macropermanenti" in r["tipo_calcolo"]
-        expected_morale = r["componenti"]["danno_biologico"] * 30 / 100
-        assert_close(r["componenti"]["danno_morale"]["importo"],
-                     round(expected_morale, 2), tolerance=0.01, label="dnp_morale")
+        pers = r["componenti"]["personalizzazione_unitaria"]
+        assert pers["applicata_pct"] == 30.0
+        expected = r["componenti"]["danno_biologico"] * 30 / 100
+        assert_close(pers["importo"], round(expected, 2), tolerance=0.01, label="dnp_pers")
 
 
 class TestEquoIndennizzo:

@@ -184,3 +184,32 @@ Due scelte di trasparenza: i correttivi discrezionali di Roma (riduzioni e aumen
 congiunto nella tabella di Roma vale 2,5 punti mentre nella scala della vittima vale 1,5 — pare
 un refuso della fonte, ma e' riprodotto **com'e' stampato**, con avviso: correggerlo d'ufficio
 significherebbe liquidare su una tabella che non esiste.
+
+### 5.5 Le avvertenze di Cassazione spostate dentro i tool
+
+I due prompt `analisi_sinistro` e `quantificazione_danni` contenevano avvertenze che valgono
+piu' della procedura in cui erano scritte. Ma **i prompt spariscono appena si usa un filtro per
+tag**: `include_tags` di FastMCP filtra tutti i componenti, e prompt e risorse non hanno tag,
+quindi qualsiasi selezione li azzera (verificato: 23 prompt e 15 risorse senza filtro, 0 con).
+Le avvertenze sono quindi state spostate dove viaggiano col tool.
+
+- **`interessi_legali`** — Cass. SS.UU. 1712/1995: sui debiti di valore gli interessi
+  compensativi NON si calcolano sul capitale interamente rivalutato (sovra-compensazione), ma
+  sulla somma progressivamente rivalutata o sul valore medio. L'errore da evitare e' la BASE,
+  non il tasso. Per i debiti di valuta non si applica.
+- **`rivalutazione_monetaria`** — stessa avvertenza, piu' un campo nuovo nel risultato:
+  **`base_media_per_interessi`**, che calcola la base corretta cosi' non c'e' da farlo a mano.
+- **`danno_non_patrimoniale`** — Cass. SS.UU. 26972/2008 (San Martino) nella docstring, e
+  rimando all'avvertenza sugli interessi nel risultato.
+
+### 5.6 Unitarieta' del danno non patrimoniale — correzione sostanziale
+
+`danno_non_patrimoniale` calcolava danno morale ed esistenziale come **poste autonome sommate**
+al biologico, fino a +100% complessivo — mentre citava in calce, come proprio fondamento, la
+sentenza che quel cumulo lo vieta. Ora le due percentuali confluiscono in **una** personalizzazione,
+limitata al tetto dell'articolo applicabile (20% micro art. 139 c. 3, 30% macro art. 138 c. 3),
+e il risultato dichiara quanto e' stato chiesto, quanto applicato e se e' stato ridotto.
+
+La stessa funzione conteneva inoltre una **seconda copia della formula sbagliata** delle
+micropermanenti, rimasta indietro rispetto alla correzione del punto 5.1. Ora esiste un unico
+helper `_biologico_permanente()`: due copie della stessa regola sono due occasioni di sbagliare.
