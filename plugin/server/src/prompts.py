@@ -103,7 +103,9 @@ PROCEDURA (segui nell'ordine):
    - Possibilità di provvisoria esecutività (art. 642 c.p.c.)
 
 4. PARCELLA AVVOCATO
-   Chiama `parcella_avvocato_civile` con valore_causa={importo} per fase monitoria.
+   Chiama `parcella_avvocato_civile` con valore_causa={importo} e **tabella="monitorio"**
+   (tab. 8 DM 55/2014: UNA voce unica, non le quattro fasi del tribunale — usare la tabella
+   del tribunale per un decreto ingiuntivo gonfia il compenso di circa otto volte).
    Indica il range compenso (minimo/medio/massimo) da D.M. 55/2014.
 
 FORMATO OUTPUT:

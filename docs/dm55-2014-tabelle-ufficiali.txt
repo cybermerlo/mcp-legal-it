@@ -1,0 +1,108 @@
+FONTE UFFICIALE — DM 10 marzo 2014 n. 55, art. 1 (tabelle parametri forensi)
+Testo VIGENTE come modificato dal DM 8 marzo 2018 n. 37 e dal DM 13 agosto 2022 n. 147.
+Recuperato da Normattiva (GU n. 77 del 02/04/2014, cod. red. 14G00067) il 2026-08-14.
+
+Serve come riscontro della trascrizione in src/data/parametri_forensi.json:
+scripts/verifica-parametri-forensi.py controlla che ogni valore del JSON compaia qui.
+
+⚠️ Normattiva rende come immagine ("Parte di provvedimento in formato grafico") gli
+scaglioni oltre € 520.000 e alcune colonne della tabella penale: quei valori NON sono
+verificabili da questa fonte.
+
+Scaglioni (salvo diversa indicazione): 0,01-1.100 | 1.100,01-5.200 | 5.200,01-26.000 |
+26.000,01-52.000 | 52.000,01-260.000 | 260.000,01-520.000
+
+1. GIUDICE DI PACE (solo 3 scaglioni)
+   studio        68   236   425
+   introduttiva  68   252   352
+   istruttoria   68   352   567
+   decisionale  142   425   746
+
+2. GIUDIZI ORDINARI E SOMMARI DI COGNIZIONE INNANZI AL TRIBUNALE
+   studio       131   425   919  1701  2552  3544
+   introduttiva 131   425   777  1204  1628  2338
+   istruttoria  200   851  1680  1806  5670 10411
+   decisionale  200   851  1701  2905  4253  6164
+
+3. CAUSE DI LAVORO
+   studio       210   888  1822  3245  4763  6668
+   introduttiva 126   425   777  1202  1701  2336
+   istruttoria  126   567  1172  1880  2678  3623
+   decisionale  179   746  1617  2930  4253  6290
+
+4. CAUSE DI PREVIDENZA
+   studio       131   425   929  1701  2552  3544
+   introduttiva 121   425   777  1204  1701  2336
+   istruttoria  179   851  1664  2693  3827  5171
+   decisionale  247   919  2021  3675  4148  7865
+
+5. PROCEDIMENTI PER CONVALIDA LOCATIZIA
+   studio       179   530   919  1701  2478  3544
+   introduttiva 179   494   709  1061  1418  1559
+   istruttoria   42   142   210   352   494   709
+   decisionale  142   425   746  1344  1911  2835
+
+6. ATTO DI PRECETTO (scaglioni: 0-5.200 | 26.000 | 52.000 | 260.000 | 520.000)
+   compenso     142   236   331   425   567
+
+7. PROCEDIMENTI DI VOLONTARIA GIURISDIZIONE (scaglioni: 0-5.200 | 26.000 | 52.000 | 260.000 | 520.000)
+   compenso     425  1418  2336  3329  4536
+
+8. PROCEDIMENTI MONITORI (scaglioni: 0-5.200 | 26.000 | 52.000 | 260.000 | 520.000)
+   fase unica (studio, istruttoria, conclusiva)
+                473   567  1370  2242  4394
+
+9. PROCEDIMENTI DI ISTRUZIONE PREVENTIVA (scaglioni: 0-5.200 | 26.000 | 52.000 | 260.000 | 520.000)
+   studio       210   567   992  1134  2126
+   introduttiva 284   709   788   992  1454
+   istruttoria  352  1061  1276  1701  2336
+
+10. PROCEDIMENTI CAUTELARI
+   studio       210   567   992  1175  2251  3686
+   introduttiva 142   352   672   851  1202  1559
+   istruttoria  210   851  1204  1985  2835  3969
+   decisionale  105   389   635  1202  1771  2552
+
+12. GIUDIZI INNANZI ALLA CORTE DI APPELLO
+   studio       142   536  1134  2058  2977  4389
+   introduttiva 142   536   921  1418  1911  2552
+   istruttoria  179   992  1843  3045  4326  5880
+   decisionale  210   851  1911  3470  5103  7298
+
+13. GIUDIZI INNANZI ALLA CORTE DI CASSAZIONE E GIURISDIZIONI SUPERIORI (3 fasi: niente istruttoria)
+   studio       252   709  1276  2336  3402  4961
+   introduttiva 284   777  1134  1969  2478  3260
+   decisionale  142   389   672  1208  1775  2552
+
+15. GIUDIZI PENALI — colonna Giudice di Pace (le altre colonne sono in formato grafico)
+   studio       378
+   introduttiva 473
+   istruttoria  756
+   decisionale  662
+
+16. PROCEDURE ESECUTIVE MOBILIARI (2 fasi)
+   studio       126   368   552   861  1166  1533
+   trattazione   63   184   305   494   735   982
+
+17. PROCEDURE ESECUTIVE PRESSO TERZI, PER CONSEGNA E RILASCIO, IN FORMA SPECIFICA (2 fasi)
+   introduttiva 110   331   552   861  1166  1533
+   trattazione  236   567   851  1360  1927  2604
+
+18. PROCEDURE ESECUTIVE IMMOBILIARI (2 fasi)
+   studio       147   452   683  1050  1433  1890
+   trattazione   76   299   452   677   982  1281
+
+20. PROCEDIMENTI PER DICHIARAZIONE DI FALLIMENTO
+   compenso     168   620   903  1470  2095  2888
+
+25. PRESTAZIONI DI ASSISTENZA STRAGIUDIZIALE
+   compenso     284  1276  1985  2410  4536  6164
+
+25-bis. PROCEDIMENTO DI MEDIAZIONE E PROCEDURA DI NEGOZIAZIONE ASSISTITA (3 fasi)
+   attivazione   63   284   441   536  1008  1370
+   negoziazione 126   567   882  1071  2016  2741
+   conciliazione
+                246  1106  1720  2088  3931  5343
+
+26. ARBITRATO (scaglioni: 0-26.000 | 52.000 | 260.000 | 520.000)
+   compenso    1701  4253  7439 17010

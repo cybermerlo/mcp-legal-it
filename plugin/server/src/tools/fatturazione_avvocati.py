@@ -51,52 +51,194 @@ def _find_scaglione_volontaria(valore_causa: float) -> dict:
     return _PARAMETRI["volontaria_giurisdizione"]["scaglioni"][-1]
 
 
+_TABELLE = _PARAMETRI["tabelle"]
+
+
+def _tabella(nome: str) -> dict | None:
+    return _TABELLE.get(nome) if not nome.startswith("_") else None
+
+
+def _indice_scaglione(tab: dict, valore: float) -> int:
+    """Indice dello scaglione di valore. L'ultimo copre anche tutto cio' che eccede."""
+    for i, soglia in enumerate(tab["_scaglioni"]):
+        if valore <= soglia:
+            return i
+    return len(tab["_scaglioni"]) - 1
+
+
+def _etichetta_scaglione(tab: dict, i: int, valore: float) -> str:
+    soglie = tab["_scaglioni"]
+    if valore > soglie[-1]:
+        return f"oltre € {soglie[-1]:,.0f}".replace(",", ".")
+    da = 0 if i == 0 else soglie[i - 1]
+    return f"da € {da:,.0f} a € {soglie[i]:,.0f}".replace(",", ".")
+
+
 @mcp.tool(tags={"parcelle_avv", "sinistro", "credito"})
 def parcella_avvocato_civile(
     valore_causa: float,
+    tabella: str = "tribunale",
     fasi: list[str] | None = None,
     livello: str = "medio",
+    soggetti_assistiti: int = 1,
+    atti_telematici: bool = False,
+    entrambi_i_coniugi: bool = False,
+    posizioni_non_distinte: bool = False,
+    conciliazione_giudiziale: bool = False,
+    memoria_378_cpc: bool = False,
 ) -> dict:
-    """Calcola compenso tabellare avvocato per contenzioso civile.
-    Vigenza: DM 55/2014 aggiornato DM 147/2022 — Parametri forensi.
-    Precisione: INDICATIVO (valori medi tabellari; il giudice può variare ±50% ex art. 4 DM 55/2014).
-    Spesso chiamato come ultimo step nel workflow recupero crediti dopo decreto_ingiuntivo().
+    """Compenso tabellare dell'avvocato secondo il DM 55/2014 (agg. DM 147/2022).
+
+    ⚠️ SCEGLIERE LA TABELLA GIUSTA: il decreto ne ha una per ciascun tipo di procedimento e
+    gli importi cambiano moltissimo. Su una causa da 10.000 € il tribunale (tab. 2) da' 5.077 €
+    a fronte dei 567 € del decreto ingiuntivo (tab. 8, che prevede UNA sola voce per studio,
+    istruttoria e fase conclusiva): applicare la tabella sbagliata sbaglia di otto volte.
+    Il risultato dichiara sempre quale tabella e' stata applicata.
+
+    Tabelle disponibili: giudice_di_pace (1), tribunale (2, default), lavoro (3),
+    previdenza (4), locatizia (5, sfratti), precetto (6), monitorio (8, decreto ingiuntivo),
+    istruzione_preventiva (9), cautelare (10), appello (12), cassazione (13),
+    esecuzione_mobiliare (16), esecuzione_presso_terzi (17), esecuzione_immobiliare (18),
+    fallimento (20), stragiudiziale (25), mediazione (25-bis), arbitrato (26).
+
+    Vigenza: valori medi ufficiali del DM 55/2014 come modificato dal DM 147/2022,
+    trascritti da Normattiva e verificati da scripts/verifica-parametri-forensi.py.
+    Precisione: ESATTO sui valori tabellari. Il minimo e il massimo sono il medio ∓50%
+    (art. 4 c. 1: aumento fino al 50%, diminuzione non oltre il 50%).
+
+    Usa questo quando: devi quantificare il compenso di un'attivita' giudiziale o
+    stragiudiziale. Per il penale usa parcella_avvocato_penale().
+    Chaining: → nota_spese() per aggiungere spese generali 15%, CPA 4% e IVA.
 
     Args:
-        valore_causa: Valore della causa in euro (€)
-        fasi: Fasi processuali da includere (default: tutte). Valori: 'studio', 'introduttiva', 'istruttoria', 'decisionale'
-        livello: Livello compenso tabellare: 'min', 'medio', 'max'
+        valore_causa: Valore della causa/dell'affare in euro (€)
+        tabella: Tipo di procedimento — vedi l'elenco sopra (default 'tribunale')
+        fasi: Fasi da liquidare; se omesso, tutte quelle previste dalla tabella. Le fasi
+              disponibili variano: la cassazione non ha istruttoria, il monitorio ha una
+              voce unica, le esecuzioni ne hanno due
+        livello: 'min', 'medio' (default) o 'max' — il medio ∓50% ex art. 4 c. 1
+        soggetti_assistiti: Numero di assistiti con la stessa posizione processuale.
+              Art. 4 c. 2: +30% per ciascuno oltre il primo fino a dieci, +10% per ciascuno
+              oltre i dieci, fino a un massimo di trenta
+        atti_telematici: Art. 4 c. 1-bis — +30% se gli atti depositati telematicamente
+              consentono ricerca testuale e navigazione interna
+        entrambi_i_coniugi: Art. 4 c. 3 — +20% se si assistono entrambi i coniugi nella
+              separazione consensuale o nel divorzio congiunto
+        posizioni_non_distinte: Art. 4 c. 4 — -30% se, a parita' di posizione processuale,
+              la prestazione non ha richiesto l'esame di questioni distinte
+        conciliazione_giudiziale: Art. 4 c. 6 — in caso di conciliazione o transazione, il
+              compenso per tale attivita' e' pari alla fase decisionale aumentata di un quarto
+        memoria_378_cpc: Art. 4 c. 10-quater — solo cassazione: fase decisionale +50% se e'
+              depositata memoria ex art. 378 c.p.c.
     """
     if livello not in ("min", "medio", "max"):
         return {"errore": f"Livello non valido: {livello}. Usare: min, medio, max"}
-
     if valore_causa < 0:
-        return {"errore": "valore_causa non può essere negativo"}
+        return {"errore": "valore_causa non puo' essere negativo"}
+    if soggetti_assistiti < 1 or soggetti_assistiti > 30:
+        return {"errore": "soggetti_assistiti deve essere tra 1 e 30 (art. 4 c. 2)"}
 
+    tab = _tabella(tabella)
+    if tab is None:
+        return {
+            "errore": f"Tabella '{tabella}' non disponibile",
+            "tabelle_disponibili": [k for k in _TABELLE if not k.startswith("_")],
+        }
+    if memoria_378_cpc and tabella != "cassazione":
+        return {"errore": "memoria_378_cpc si applica solo alla tabella 'cassazione' (art. 4 c. 10-quater)"}
+
+    fasi_tab = list(tab["fasi"])
     if fasi is None:
-        fasi = list(_FASI_CIVILE)
+        fasi = fasi_tab
     else:
-        invalid = [f for f in fasi if f not in _FASI_CIVILE]
-        if invalid:
-            return {"errore": f"Fasi non valide: {invalid}. Ammesse: {_FASI_CIVILE}"}
+        assenti = [f for f in fasi if f not in fasi_tab]
+        if assenti:
+            return {
+                "errore": f"Fasi non previste dalla tabella '{tabella}': {assenti}",
+                "fasi_disponibili": fasi_tab,
+            }
 
-    scaglione = _find_scaglione_civile(valore_causa)
-    scaglione_label = _scaglione_label(scaglione, _PARAMETRI["civile"]["scaglioni"])
+    i = _indice_scaglione(tab, valore_causa)
+    moltiplicatore = {"min": 0.5, "medio": 1.0, "max": 1.5}[livello]
 
     dettaglio = []
-    totale = 0.0
+    base = 0.0
     for fase in fasi:
-        importo = scaglione[fase][livello]
-        totale += importo
-        dettaglio.append({"fase": fase, "importo": importo})
+        medio = tab["fasi"][fase][i]
+        importo = medio * moltiplicatore
+        if fase == "decisionale" and memoria_378_cpc:
+            importo *= 1.5
+        base += importo
+        dettaglio.append({"fase": fase, "valore_medio_tabellare": medio, "importo": round(importo, 2)})
+
+    passaggi = [{"voce": f"compenso tabellare ({livello})", "importo": round(base, 2)}]
+    totale = base
+
+    if conciliazione_giudiziale and "decisionale" in tab["fasi"]:
+        # art. 4 c. 6: compenso per l'attivita' conciliativa = fase decisionale + 1/4,
+        # fermo quanto maturato per l'attivita' gia' svolta
+        agg = tab["fasi"]["decisionale"][i] * moltiplicatore * 1.25
+        totale += agg
+        passaggi.append({"voce": "conciliazione/transazione — fase decisionale +1/4 (art. 4 c. 6)", "importo": round(agg, 2)})
+
+    if soggetti_assistiti > 1:
+        oltre_primo = min(soggetti_assistiti - 1, 9)
+        oltre_dieci = max(soggetti_assistiti - 10, 0)
+        pct = oltre_primo * 30 + oltre_dieci * 10
+        agg = totale * pct / 100
+        totale += agg
+        passaggi.append({"voce": f"{soggetti_assistiti} assistiti — +{pct}% (art. 4 c. 2)", "importo": round(agg, 2)})
+
+    if entrambi_i_coniugi:
+        agg = totale * 0.20
+        totale += agg
+        passaggi.append({"voce": "assistenza a entrambi i coniugi — +20% (art. 4 c. 3)", "importo": round(agg, 2)})
+
+    if posizioni_non_distinte:
+        rid = totale * 0.30
+        totale -= rid
+        passaggi.append({"voce": "questioni non distinte — -30% (art. 4 c. 4)", "importo": round(-rid, 2)})
+
+    if atti_telematici:
+        agg = totale * 0.30
+        totale += agg
+        passaggi.append({"voce": "atti telematici navigabili — +30% (art. 4 c. 1-bis)", "importo": round(agg, 2)})
+
+    # se il valore cade in uno scaglione che non ho potuto riscontrare sul testo ufficiale,
+    # o oltre l'ultimo scaglione della tabella, dirlo invece di restituire un numero muto
+    non_verif = len(tab.get("_scaglioni_non_verificabili", []))
+    avvisi = []
+    if non_verif and i >= len(tab["_scaglioni"]) - non_verif:
+        avvisi.append(
+            "scaglione non riscontrabile sul testo ufficiale (Normattiva rende quella parte "
+            "della tabella come immagine): valore da verificare prima dell'uso"
+        )
+    if valore_causa > tab["_scaglioni"][-1]:
+        avvisi.append(
+            f"il valore eccede l'ultimo scaglione della tabella (€ {tab['_scaglioni'][-1]:,.0f}): "
+            f"si applica l'ultimo scaglione".replace(",", ".")
+        )
 
     return {
         "valore_causa": valore_causa,
-        "scaglione": scaglione_label,
+        "tabella_applicata": f"Tab. {tab['_tabella']} — {tab['_titolo']}",
+        "scaglione": _etichetta_scaglione(tab, i, valore_causa),
         "livello": livello,
         "fasi": dettaglio,
+        "compenso_tabellare": round(base, 2),
+        "passaggi": passaggi,
         "totale_compenso": round(totale, 2),
-        "riferimento_normativo": "DM 55/2014 aggiornato DM 147/2022 — Parametri forensi contenzioso civile",
+        "avvertenza": (
+            f"Applicata la tabella '{tabella}'. Se il procedimento e' di altro tipo il compenso "
+            f"cambia anche di molto: verificare l'elenco delle tabelle disponibili. Importo al netto "
+            f"di spese generali 15%, CPA e IVA — usare nota_spese()."
+        ),
+        "riferimento_normativo": (
+            f"DM 55/2014 tab. {tab['_tabella']}, testo vigente (DM 147/2022); "
+            f"art. 4 per le variazioni"
+        ),
+        **({"nota_tabella": tab["_nota"]} if "_nota" in tab else {}),
+        **({"avvisi": avvisi} if avvisi else {}),
     }
 
 

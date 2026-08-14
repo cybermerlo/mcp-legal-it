@@ -6,94 +6,302 @@
     "scaglioni": [
       {
         "fino_a": 1100,
-        "studio":       {"min": 66, "medio": 131, "max": 197},
-        "introduttiva": {"min": 66, "medio": 131, "max": 197},
-        "istruttoria":  {"min": 100, "medio": 200, "max": 300},
-        "decisionale":  {"min": 100, "medio": 200, "max": 300}
+        "studio": {
+          "min": 66,
+          "medio": 131,
+          "max": 197
+        },
+        "introduttiva": {
+          "min": 66,
+          "medio": 131,
+          "max": 197
+        },
+        "istruttoria": {
+          "min": 100,
+          "medio": 200,
+          "max": 300
+        },
+        "decisionale": {
+          "min": 100,
+          "medio": 200,
+          "max": 300
+        }
       },
       {
         "fino_a": 5200,
-        "studio":       {"min": 213, "medio": 425, "max": 638},
-        "introduttiva": {"min": 213, "medio": 425, "max": 638},
-        "istruttoria":  {"min": 426, "medio": 851, "max": 1277},
-        "decisionale":  {"min": 426, "medio": 851, "max": 1277}
+        "studio": {
+          "min": 213,
+          "medio": 425,
+          "max": 638
+        },
+        "introduttiva": {
+          "min": 213,
+          "medio": 425,
+          "max": 638
+        },
+        "istruttoria": {
+          "min": 426,
+          "medio": 851,
+          "max": 1277
+        },
+        "decisionale": {
+          "min": 426,
+          "medio": 851,
+          "max": 1277
+        }
       },
       {
         "fino_a": 26000,
-        "studio":       {"min": 460, "medio": 919, "max": 1379},
-        "introduttiva": {"min": 389, "medio": 777, "max": 1166},
-        "istruttoria":  {"min": 840, "medio": 1680, "max": 2520},
-        "decisionale":  {"min": 851, "medio": 1701, "max": 2552}
+        "studio": {
+          "min": 460,
+          "medio": 919,
+          "max": 1379
+        },
+        "introduttiva": {
+          "min": 389,
+          "medio": 777,
+          "max": 1166
+        },
+        "istruttoria": {
+          "min": 840,
+          "medio": 1680,
+          "max": 2520
+        },
+        "decisionale": {
+          "min": 851,
+          "medio": 1701,
+          "max": 2552
+        }
       },
       {
         "fino_a": 52000,
-        "studio":       {"min": 851, "medio": 1701, "max": 2552},
-        "introduttiva": {"min": 602, "medio": 1204, "max": 1806},
-        "istruttoria":  {"min": 903, "medio": 1806, "max": 2709},
-        "decisionale":  {"min": 1453, "medio": 2905, "max": 4358}
+        "studio": {
+          "min": 851,
+          "medio": 1701,
+          "max": 2552
+        },
+        "introduttiva": {
+          "min": 602,
+          "medio": 1204,
+          "max": 1806
+        },
+        "istruttoria": {
+          "min": 903,
+          "medio": 1806,
+          "max": 2709
+        },
+        "decisionale": {
+          "min": 1453,
+          "medio": 2905,
+          "max": 4358
+        }
       },
       {
         "fino_a": 260000,
-        "studio":       {"min": 1276, "medio": 2552, "max": 3828},
-        "introduttiva": {"min": 814, "medio": 1628, "max": 2442},
-        "istruttoria":  {"min": 2835, "medio": 5670, "max": 8505},
-        "decisionale":  {"min": 2127, "medio": 4253, "max": 6380}
+        "studio": {
+          "min": 1276,
+          "medio": 2552,
+          "max": 3828
+        },
+        "introduttiva": {
+          "min": 814,
+          "medio": 1628,
+          "max": 2442
+        },
+        "istruttoria": {
+          "min": 2835,
+          "medio": 5670,
+          "max": 8505
+        },
+        "decisionale": {
+          "min": 2127,
+          "medio": 4253,
+          "max": 6380
+        }
       },
       {
         "fino_a": 520000,
-        "studio":       {"min": 1772, "medio": 3544, "max": 5316},
-        "introduttiva": {"min": 1169, "medio": 2338, "max": 3507},
-        "istruttoria":  {"min": 5206, "medio": 10411, "max": 15617},
-        "decisionale":  {"min": 3082, "medio": 6164, "max": 9246}
+        "studio": {
+          "min": 1772,
+          "medio": 3544,
+          "max": 5316
+        },
+        "introduttiva": {
+          "min": 1169,
+          "medio": 2338,
+          "max": 3507
+        },
+        "istruttoria": {
+          "min": 5206,
+          "medio": 10411,
+          "max": 15617
+        },
+        "decisionale": {
+          "min": 3082,
+          "medio": 6164,
+          "max": 9246
+        }
       },
       {
         "fino_a": 1000000,
-        "studio":       {"min": 2304, "medio": 4607, "max": 6911},
-        "introduttiva": {"min": 1520, "medio": 3039, "max": 4559},
-        "istruttoria":  {"min": 6767, "medio": 13534, "max": 20301},
-        "decisionale":  {"min": 4007, "medio": 8013, "max": 12020}
+        "studio": {
+          "min": 2304,
+          "medio": 4607,
+          "max": 6911
+        },
+        "introduttiva": {
+          "min": 1520,
+          "medio": 3039,
+          "max": 4559
+        },
+        "istruttoria": {
+          "min": 6767,
+          "medio": 13534,
+          "max": 20301
+        },
+        "decisionale": {
+          "min": 4007,
+          "medio": 8013,
+          "max": 12020
+        }
       },
       {
         "fino_a": 2000000,
-        "studio":       {"min": 2995, "medio": 5989, "max": 8984},
-        "introduttiva": {"min": 1976, "medio": 3951, "max": 5927},
-        "istruttoria":  {"min": 8797, "medio": 17594, "max": 26391},
-        "decisionale":  {"min": 5209, "medio": 10417, "max": 15626}
+        "studio": {
+          "min": 2995,
+          "medio": 5989,
+          "max": 8984
+        },
+        "introduttiva": {
+          "min": 1976,
+          "medio": 3951,
+          "max": 5927
+        },
+        "istruttoria": {
+          "min": 8797,
+          "medio": 17594,
+          "max": 26391
+        },
+        "decisionale": {
+          "min": 5209,
+          "medio": 10417,
+          "max": 15626
+        }
       },
       {
         "fino_a": 4000000,
-        "studio":       {"min": 3893, "medio": 7786, "max": 11679},
-        "introduttiva": {"min": 2568, "medio": 5136, "max": 7704},
-        "istruttoria":  {"min": 11436, "medio": 22872, "max": 34308},
-        "decisionale":  {"min": 6771, "medio": 13542, "max": 20313}
+        "studio": {
+          "min": 3893,
+          "medio": 7786,
+          "max": 11679
+        },
+        "introduttiva": {
+          "min": 2568,
+          "medio": 5136,
+          "max": 7704
+        },
+        "istruttoria": {
+          "min": 11436,
+          "medio": 22872,
+          "max": 34308
+        },
+        "decisionale": {
+          "min": 6771,
+          "medio": 13542,
+          "max": 20313
+        }
       },
       {
         "fino_a": 8000000,
-        "studio":       {"min": 5061, "medio": 10122, "max": 15183},
-        "introduttiva": {"min": 3339, "medio": 6677, "max": 10016},
-        "istruttoria":  {"min": 14867, "medio": 29734, "max": 44601},
-        "decisionale":  {"min": 8803, "medio": 17605, "max": 26408}
+        "studio": {
+          "min": 5061,
+          "medio": 10122,
+          "max": 15183
+        },
+        "introduttiva": {
+          "min": 3339,
+          "medio": 6677,
+          "max": 10016
+        },
+        "istruttoria": {
+          "min": 14867,
+          "medio": 29734,
+          "max": 44601
+        },
+        "decisionale": {
+          "min": 8803,
+          "medio": 17605,
+          "max": 26408
+        }
       },
       {
         "fino_a": 16000000,
-        "studio":       {"min": 6580, "medio": 13159, "max": 19739},
-        "introduttiva": {"min": 4340, "medio": 8680, "max": 13020},
-        "istruttoria":  {"min": 19327, "medio": 38654, "max": 57981},
-        "decisionale":  {"min": 11444, "medio": 22887, "max": 34331}
+        "studio": {
+          "min": 6580,
+          "medio": 13159,
+          "max": 19739
+        },
+        "introduttiva": {
+          "min": 4340,
+          "medio": 8680,
+          "max": 13020
+        },
+        "istruttoria": {
+          "min": 19327,
+          "medio": 38654,
+          "max": 57981
+        },
+        "decisionale": {
+          "min": 11444,
+          "medio": 22887,
+          "max": 34331
+        }
       },
       {
         "fino_a": 32000000,
-        "studio":       {"min": 8554, "medio": 17107, "max": 25661},
-        "introduttiva": {"min": 5642, "medio": 11284, "max": 16926},
-        "istruttoria":  {"min": 25125, "medio": 50250, "max": 75375},
-        "decisionale":  {"min": 14877, "medio": 29753, "max": 44630}
+        "studio": {
+          "min": 8554,
+          "medio": 17107,
+          "max": 25661
+        },
+        "introduttiva": {
+          "min": 5642,
+          "medio": 11284,
+          "max": 16926
+        },
+        "istruttoria": {
+          "min": 25125,
+          "medio": 50250,
+          "max": 75375
+        },
+        "decisionale": {
+          "min": 14877,
+          "medio": 29753,
+          "max": 44630
+        }
       },
       {
         "oltre": true,
-        "studio":       {"min": 8554, "medio": 17107, "max": 25661},
-        "introduttiva": {"min": 5642, "medio": 11284, "max": 16926},
-        "istruttoria":  {"min": 25125, "medio": 50250, "max": 75375},
-        "decisionale":  {"min": 14877, "medio": 29753, "max": 44630}
+        "studio": {
+          "min": 8554,
+          "medio": 17107,
+          "max": 25661
+        },
+        "introduttiva": {
+          "min": 5642,
+          "medio": 11284,
+          "max": 16926
+        },
+        "istruttoria": {
+          "min": 25125,
+          "medio": 50250,
+          "max": 75375
+        },
+        "decisionale": {
+          "min": 14877,
+          "medio": 29753,
+          "max": 44630
+        }
       }
     ]
   },
@@ -103,62 +311,189 @@
       {
         "tipo": "giudice_pace",
         "label": "Giudice di pace",
-        "studio":       {"min": 189, "medio": 378, "max": 567},
-        "introduttiva": {"min": 237, "medio": 473, "max": 710},
-        "istruttoria":  {"min": 378, "medio": 756, "max": 1134},
-        "decisionale":  {"min": 331, "medio": 662, "max": 993}
+        "studio": {
+          "min": 189,
+          "medio": 378,
+          "max": 567
+        },
+        "introduttiva": {
+          "min": 237,
+          "medio": 473,
+          "max": 710
+        },
+        "istruttoria": {
+          "min": 378,
+          "medio": 756,
+          "max": 1134
+        },
+        "decisionale": {
+          "min": 331,
+          "medio": 662,
+          "max": 993
+        }
       },
       {
         "tipo": "tribunale_monocratico",
         "label": "Tribunale monocratico",
-        "studio":       {"min": 237, "medio": 473, "max": 710},
-        "introduttiva": {"min": 284, "medio": 567, "max": 851},
-        "istruttoria":  {"min": 567, "medio": 1134, "max": 1701},
-        "decisionale":  {"min": 709, "medio": 1418, "max": 2127}
+        "studio": {
+          "min": 237,
+          "medio": 473,
+          "max": 710
+        },
+        "introduttiva": {
+          "min": 284,
+          "medio": 567,
+          "max": 851
+        },
+        "istruttoria": {
+          "min": 567,
+          "medio": 1134,
+          "max": 1701
+        },
+        "decisionale": {
+          "min": 709,
+          "medio": 1418,
+          "max": 2127
+        }
       },
       {
         "tipo": "tribunale_collegiale",
         "label": "Tribunale collegiale",
-        "studio":       {"min": 237, "medio": 473, "max": 710},
-        "introduttiva": {"min": 378, "medio": 756, "max": 1134},
-        "istruttoria":  {"min": 709, "medio": 1418, "max": 2127},
-        "decisionale":  {"min": 709, "medio": 1418, "max": 2127}
+        "studio": {
+          "min": 237,
+          "medio": 473,
+          "max": 710
+        },
+        "introduttiva": {
+          "min": 378,
+          "medio": 756,
+          "max": 1134
+        },
+        "istruttoria": {
+          "min": 709,
+          "medio": 1418,
+          "max": 2127
+        },
+        "decisionale": {
+          "min": 709,
+          "medio": 1418,
+          "max": 2127
+        }
       },
       {
         "tipo": "corte_assise",
         "label": "Corte d'Assise",
-        "studio":       {"min": 378, "medio": 756, "max": 1134},
-        "introduttiva": {"min": 709, "medio": 1418, "max": 2127},
-        "istruttoria":  {"min": 1182, "medio": 2363, "max": 3545},
-        "decisionale":  {"min": 1418, "medio": 2835, "max": 4253}
+        "studio": {
+          "min": 378,
+          "medio": 756,
+          "max": 1134
+        },
+        "introduttiva": {
+          "min": 709,
+          "medio": 1418,
+          "max": 2127
+        },
+        "istruttoria": {
+          "min": 1182,
+          "medio": 2363,
+          "max": 3545
+        },
+        "decisionale": {
+          "min": 1418,
+          "medio": 2835,
+          "max": 4253
+        }
       },
       {
         "tipo": "corte_appello",
         "label": "Corte d'Appello",
-        "studio":       {"min": 237, "medio": 473, "max": 710},
-        "introduttiva": {"min": 473, "medio": 945, "max": 1418},
-        "istruttoria":  {"min": 709, "medio": 1418, "max": 2127},
-        "decisionale":  {"min": 709, "medio": 1418, "max": 2127}
+        "studio": {
+          "min": 237,
+          "medio": 473,
+          "max": 710
+        },
+        "introduttiva": {
+          "min": 473,
+          "medio": 945,
+          "max": 1418
+        },
+        "istruttoria": {
+          "min": 709,
+          "medio": 1418,
+          "max": 2127
+        },
+        "decisionale": {
+          "min": 709,
+          "medio": 1418,
+          "max": 2127
+        }
       },
       {
         "tipo": "cassazione",
         "label": "Corte di Cassazione",
-        "studio":       {"min": 473, "medio": 945, "max": 1418},
-        "introduttiva": {"min": 1323, "medio": 2646, "max": 3969},
-        "istruttoria":  null,
-        "decisionale":  {"min": 1371, "medio": 2741, "max": 4112}
+        "studio": {
+          "min": 473,
+          "medio": 945,
+          "max": 1418
+        },
+        "introduttiva": {
+          "min": 1323,
+          "medio": 2646,
+          "max": 3969
+        },
+        "istruttoria": null,
+        "decisionale": {
+          "min": 1371,
+          "medio": 2741,
+          "max": 4112
+        }
       }
     ]
   },
   "stragiudiziale": {
     "scaglioni": [
-      {"fino_a": 1100,   "min": 142, "medio": 284, "max": 426},
-      {"fino_a": 5200,   "min": 638, "medio": 1276, "max": 1914},
-      {"fino_a": 26000,  "min": 993, "medio": 1985, "max": 2978},
-      {"fino_a": 52000,  "min": 1205, "medio": 2410, "max": 3615},
-      {"fino_a": 260000, "min": 2268, "medio": 4536, "max": 6804},
-      {"fino_a": 520000, "min": 3082, "medio": 6164, "max": 9246},
-      {"oltre": true,    "min": 3082, "medio": 6164, "max": 9246}
+      {
+        "fino_a": 1100,
+        "min": 142,
+        "medio": 284,
+        "max": 426
+      },
+      {
+        "fino_a": 5200,
+        "min": 638,
+        "medio": 1276,
+        "max": 1914
+      },
+      {
+        "fino_a": 26000,
+        "min": 993,
+        "medio": 1985,
+        "max": 2978
+      },
+      {
+        "fino_a": 52000,
+        "min": 1205,
+        "medio": 2410,
+        "max": 3615
+      },
+      {
+        "fino_a": 260000,
+        "min": 2268,
+        "medio": 4536,
+        "max": 6804
+      },
+      {
+        "fino_a": 520000,
+        "min": 3082,
+        "medio": 6164,
+        "max": 9246
+      },
+      {
+        "oltre": true,
+        "min": 3082,
+        "medio": 6164,
+        "max": 9246
+      }
     ]
   },
   "volontaria_giurisdizione": {
@@ -166,34 +501,735 @@
     "scaglioni": [
       {
         "fino_a": 5200,
-        "studio":     {"min": 106, "medio": 213, "max": 319},
-        "trattazione": {"min": 107, "medio": 212, "max": 319}
+        "studio": {
+          "min": 106,
+          "medio": 213,
+          "max": 319
+        },
+        "trattazione": {
+          "min": 107,
+          "medio": 212,
+          "max": 319
+        }
       },
       {
         "fino_a": 26000,
-        "studio":     {"min": 355, "medio": 709, "max": 1064},
-        "trattazione": {"min": 354, "medio": 709, "max": 1063}
+        "studio": {
+          "min": 355,
+          "medio": 709,
+          "max": 1064
+        },
+        "trattazione": {
+          "min": 354,
+          "medio": 709,
+          "max": 1063
+        }
       },
       {
         "fino_a": 52000,
-        "studio":     {"min": 584, "medio": 1168, "max": 1752},
-        "trattazione": {"min": 584, "medio": 1168, "max": 1752}
+        "studio": {
+          "min": 584,
+          "medio": 1168,
+          "max": 1752
+        },
+        "trattazione": {
+          "min": 584,
+          "medio": 1168,
+          "max": 1752
+        }
       },
       {
         "fino_a": 260000,
-        "studio":     {"min": 833, "medio": 1665, "max": 2497},
-        "trattazione": {"min": 832, "medio": 1664, "max": 2497}
+        "studio": {
+          "min": 833,
+          "medio": 1665,
+          "max": 2497
+        },
+        "trattazione": {
+          "min": 832,
+          "medio": 1664,
+          "max": 2497
+        }
       },
       {
         "fino_a": 520000,
-        "studio":     {"min": 1134, "medio": 2268, "max": 3402},
-        "trattazione": {"min": 1134, "medio": 2268, "max": 3402}
+        "studio": {
+          "min": 1134,
+          "medio": 2268,
+          "max": 3402
+        },
+        "trattazione": {
+          "min": 1134,
+          "medio": 2268,
+          "max": 3402
+        }
       },
       {
         "oltre": true,
-        "studio":     {"min": 1134, "medio": 2268, "max": 3402},
-        "trattazione": {"min": 1134, "medio": 2268, "max": 3402}
+        "studio": {
+          "min": 1134,
+          "medio": 2268,
+          "max": 3402
+        },
+        "trattazione": {
+          "min": 1134,
+          "medio": 2268,
+          "max": 3402
+        }
       }
     ]
+  },
+  "tabelle": {
+    "_nota": "Valori MEDI ufficiali del DM 55/2014 (testo vigente, DM 147/2022). Il decreto contiene UN valore per fase: il minimo e il massimo NON sono in tabella, si ricavano applicando l'art. 4 c. 1 (±50%) e li calcola il codice, non questo file. Riscontro: docs/dm55-2014-tabelle-ufficiali.txt + scripts/verifica-parametri-forensi.py",
+    "giudice_di_pace": {
+      "_tabella": "1",
+      "_titolo": "Giudice di pace",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000
+      ],
+      "fasi": {
+        "studio": [
+          68,
+          236,
+          425
+        ],
+        "introduttiva": [
+          68,
+          252,
+          352
+        ],
+        "istruttoria": [
+          68,
+          352,
+          567
+        ],
+        "decisionale": [
+          142,
+          425,
+          746
+        ]
+      }
+    },
+    "tribunale": {
+      "_tabella": "2",
+      "_titolo": "Giudizi ordinari e sommari di cognizione innanzi al tribunale",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000,
+        52000,
+        260000,
+        520000,
+        1000000,
+        2000000,
+        4000000,
+        8000000,
+        16000000,
+        32000000
+      ],
+      "fasi": {
+        "studio": [
+          131,
+          425,
+          919,
+          1701,
+          2552,
+          3544,
+          4607,
+          5989,
+          7786,
+          10122,
+          13159,
+          17107
+        ],
+        "introduttiva": [
+          131,
+          425,
+          777,
+          1204,
+          1628,
+          2338,
+          3039,
+          3951,
+          5136,
+          6677,
+          8680,
+          11284
+        ],
+        "istruttoria": [
+          200,
+          851,
+          1680,
+          1806,
+          5670,
+          10411,
+          13534,
+          17594,
+          22872,
+          29734,
+          38654,
+          50250
+        ],
+        "decisionale": [
+          200,
+          851,
+          1701,
+          2905,
+          4253,
+          6164,
+          8013,
+          10417,
+          13542,
+          17605,
+          22887,
+          29753
+        ]
+      },
+      "_scaglioni_non_verificabili": [
+        1000000,
+        2000000,
+        4000000,
+        8000000,
+        16000000,
+        32000000
+      ],
+      "_nota": "Gli scaglioni oltre € 520.000 provengono dalla fonte secondaria da cui era stato tratto il dato originario (avvocatoandreani.it): Normattiva rende quella parte della tabella come immagine, quindi NON e' stato possibile riscontrarli sul testo ufficiale. I sei scaglioni fino a € 520.000 sono invece verificati uno per uno."
+    },
+    "lavoro": {
+      "_tabella": "3",
+      "_titolo": "Cause di lavoro",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "studio": [
+          210,
+          888,
+          1822,
+          3245,
+          4763,
+          6668
+        ],
+        "introduttiva": [
+          126,
+          425,
+          777,
+          1202,
+          1701,
+          2336
+        ],
+        "istruttoria": [
+          126,
+          567,
+          1172,
+          1880,
+          2678,
+          3623
+        ],
+        "decisionale": [
+          179,
+          746,
+          1617,
+          2930,
+          4253,
+          6290
+        ]
+      }
+    },
+    "previdenza": {
+      "_tabella": "4",
+      "_titolo": "Cause di previdenza",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "studio": [
+          131,
+          425,
+          929,
+          1701,
+          2552,
+          3544
+        ],
+        "introduttiva": [
+          121,
+          425,
+          777,
+          1204,
+          1701,
+          2336
+        ],
+        "istruttoria": [
+          179,
+          851,
+          1664,
+          2693,
+          3827,
+          5171
+        ],
+        "decisionale": [
+          247,
+          919,
+          2021,
+          3675,
+          4148,
+          7865
+        ]
+      }
+    },
+    "locatizia": {
+      "_tabella": "5",
+      "_titolo": "Procedimenti per convalida locatizia (sfratto)",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "studio": [
+          179,
+          530,
+          919,
+          1701,
+          2478,
+          3544
+        ],
+        "introduttiva": [
+          179,
+          494,
+          709,
+          1061,
+          1418,
+          1559
+        ],
+        "istruttoria": [
+          42,
+          142,
+          210,
+          352,
+          494,
+          709
+        ],
+        "decisionale": [
+          142,
+          425,
+          746,
+          1344,
+          1911,
+          2835
+        ]
+      }
+    },
+    "precetto": {
+      "_tabella": "6",
+      "_titolo": "Atto di precetto",
+      "_scaglioni": [
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "compenso": [
+          142,
+          236,
+          331,
+          425,
+          567
+        ]
+      }
+    },
+    "monitorio": {
+      "_tabella": "8",
+      "_titolo": "Procedimenti monitori (decreto ingiuntivo)",
+      "_nota": "Il decreto prevede UNA SOLA voce che copre studio, istruttoria e fase conclusiva: non si sommano quattro fasi.",
+      "_scaglioni": [
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "fase_unica": [
+          473,
+          567,
+          1370,
+          2242,
+          4394
+        ]
+      }
+    },
+    "istruzione_preventiva": {
+      "_tabella": "9",
+      "_titolo": "Procedimenti di istruzione preventiva",
+      "_scaglioni": [
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "studio": [
+          210,
+          567,
+          992,
+          1134,
+          2126
+        ],
+        "introduttiva": [
+          284,
+          709,
+          788,
+          992,
+          1454
+        ],
+        "istruttoria": [
+          352,
+          1061,
+          1276,
+          1701,
+          2336
+        ]
+      }
+    },
+    "cautelare": {
+      "_tabella": "10",
+      "_titolo": "Procedimenti cautelari",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "studio": [
+          210,
+          567,
+          992,
+          1175,
+          2251,
+          3686
+        ],
+        "introduttiva": [
+          142,
+          352,
+          672,
+          851,
+          1202,
+          1559
+        ],
+        "istruttoria": [
+          210,
+          851,
+          1204,
+          1985,
+          2835,
+          3969
+        ],
+        "decisionale": [
+          105,
+          389,
+          635,
+          1202,
+          1771,
+          2552
+        ]
+      }
+    },
+    "appello": {
+      "_tabella": "12",
+      "_titolo": "Giudizi innanzi alla Corte di appello",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "studio": [
+          142,
+          536,
+          1134,
+          2058,
+          2977,
+          4389
+        ],
+        "introduttiva": [
+          142,
+          536,
+          921,
+          1418,
+          1911,
+          2552
+        ],
+        "istruttoria": [
+          179,
+          992,
+          1843,
+          3045,
+          4326,
+          5880
+        ],
+        "decisionale": [
+          210,
+          851,
+          1911,
+          3470,
+          5103,
+          7298
+        ]
+      }
+    },
+    "cassazione": {
+      "_tabella": "13",
+      "_titolo": "Giudizi innanzi alla Corte di cassazione e giurisdizioni superiori",
+      "_nota": "Nessuna fase istruttoria. Art. 4 c. 10-quater: la fase decisionale puo' essere aumentata fino al 50% se e' depositata memoria ex art. 378 c.p.c.",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "studio": [
+          252,
+          709,
+          1276,
+          2336,
+          3402,
+          4961
+        ],
+        "introduttiva": [
+          284,
+          777,
+          1134,
+          1969,
+          2478,
+          3260
+        ],
+        "decisionale": [
+          142,
+          389,
+          672,
+          1208,
+          1775,
+          2552
+        ]
+      }
+    },
+    "esecuzione_mobiliare": {
+      "_tabella": "16",
+      "_titolo": "Procedure esecutive mobiliari",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "studio": [
+          126,
+          368,
+          552,
+          861,
+          1166,
+          1533
+        ],
+        "trattazione": [
+          63,
+          184,
+          305,
+          494,
+          735,
+          982
+        ]
+      }
+    },
+    "esecuzione_presso_terzi": {
+      "_tabella": "17",
+      "_titolo": "Procedure esecutive presso terzi, per consegna e rilascio, in forma specifica",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "introduttiva": [
+          110,
+          331,
+          552,
+          861,
+          1166,
+          1533
+        ],
+        "trattazione": [
+          236,
+          567,
+          851,
+          1360,
+          1927,
+          2604
+        ]
+      }
+    },
+    "esecuzione_immobiliare": {
+      "_tabella": "18",
+      "_titolo": "Procedure esecutive immobiliari",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "studio": [
+          147,
+          452,
+          683,
+          1050,
+          1433,
+          1890
+        ],
+        "trattazione": [
+          76,
+          299,
+          452,
+          677,
+          982,
+          1281
+        ]
+      }
+    },
+    "fallimento": {
+      "_tabella": "20",
+      "_titolo": "Procedimenti per dichiarazione di fallimento",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "compenso": [
+          168,
+          620,
+          903,
+          1470,
+          2095,
+          2888
+        ]
+      }
+    },
+    "stragiudiziale": {
+      "_tabella": "25",
+      "_titolo": "Prestazioni di assistenza stragiudiziale",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "compenso": [
+          284,
+          1276,
+          1985,
+          2410,
+          4536,
+          6164
+        ]
+      }
+    },
+    "mediazione": {
+      "_tabella": "25-bis",
+      "_titolo": "Procedimento di mediazione e negoziazione assistita",
+      "_scaglioni": [
+        1100,
+        5200,
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "attivazione": [
+          63,
+          284,
+          441,
+          536,
+          1008,
+          1370
+        ],
+        "negoziazione": [
+          126,
+          567,
+          882,
+          1071,
+          2016,
+          2741
+        ],
+        "conciliazione": [
+          246,
+          1106,
+          1720,
+          2088,
+          3931,
+          5343
+        ]
+      }
+    },
+    "arbitrato": {
+      "_tabella": "26",
+      "_titolo": "Arbitrato",
+      "_scaglioni": [
+        26000,
+        52000,
+        260000,
+        520000
+      ],
+      "fasi": {
+        "compenso": [
+          1701,
+          4253,
+          7439,
+          17010
+        ]
+      }
+    }
   }
 }

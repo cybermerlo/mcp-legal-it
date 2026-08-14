@@ -213,3 +213,77 @@ e il risultato dichiara quanto e' stato chiesto, quanto applicato e se e' stato 
 La stessa funzione conteneva inoltre una **seconda copia della formula sbagliata** delle
 micropermanenti, rimasta indietro rispetto alla correzione del punto 5.1. Ora esiste un unico
 helper `_biologico_permanente()`: due copie della stessa regola sono due occasioni di sbagliare.
+
+## 6. Compensi forensi — la tabella giusta invece di una sola (2026-08-14)
+
+### 6.1 Cosa era gia' corretto
+
+Verificato contro il testo vigente del DM 55/2014 su Normattiva (GU n. 77 del 02/04/2014,
+come modificato dal DM 37/2018 e dal DM 147/2022):
+
+- tab. 2 (tribunale, cognizione): **6 scaglioni su 6 esatti**;
+- tab. 25 (stragiudiziale): **6 su 6**;
+- tab. 7 (volontaria giurisdizione): totali esatti (il tool ripartisce il compenso unico
+  50/50 fra studio e trattazione: e' una sua convenzione, ma la somma torna);
+- tab. 15 penale, colonna giudice di pace: **4 fasi su 4**;
+- `nota_spese`: compensi + 15% spese generali (art. 2 c. 2) → CPA 4% → IVA 22%, con le
+  spese vive fuori dall'imponibile. Catena corretta;
+- min/max a ∓50%: **corretto**. Il DM 147/2022 ha ridotto al 50% il tetto di aumento che
+  prima era dell'80% e ha soppresso il periodo sulla fase istruttoria.
+
+### 6.2 Il problema: 26 tabelle nel decreto, una sola nel tool
+
+`parcella_avvocato_civile` applicava **sempre la tab. 2** (tribunale), qualunque fosse il
+procedimento, senza dichiararlo. Su una causa da 10.000 € a compensi medi:
+
+| Affare | Tabella | Importo | Il tool dava |
+|---|---|---:|---:|
+| Decreto ingiuntivo | 8 — voce **unica** | 567 € | 5.077 € (**+795%**) |
+| Esecuzione presso terzi | 17 | 1.403 € | +262% |
+| Giudice di pace | 1 | 2.090 € | +143% |
+| Sfratto per morosita' | 5 | 2.584 € | +96% |
+| Mediazione/negoziazione | 25-bis | 3.043 € | +67% |
+| Cassazione | 13 | 3.082 € | +65% |
+| Cautelare | 10 | 3.503 € | +45% |
+| Lavoro | 3 | 5.388 € | −6% |
+| Appello | 12 | 5.809 € | −13% |
+
+Il caso peggiore era anche il piu' frequente: il monitorio ha **una sola voce** che copre
+studio, istruttoria e fase conclusiva, e la docstring del tool indirizzava proprio li'
+(«spesso chiamato... dopo `decreto_ingiuntivo()`»). Qui l'errore va **in eccesso**: una
+parcella gonfiata di otto volte non supera la liquidazione.
+
+### 6.3 Cosa e' stato fatto
+
+- **18 tabelle** trascritte dal testo ufficiale: giudice di pace (1), tribunale (2), lavoro (3),
+  previdenza (4), locatizia (5), precetto (6), volontaria giurisdizione (7), monitorio (8),
+  istruzione preventiva (9), cautelare (10), appello (12), cassazione (13), esecuzioni
+  mobiliari (16), presso terzi (17), immobiliari (18), fallimento (20), stragiudiziale (25),
+  mediazione e negoziazione assistita (25-bis), arbitrato (26).
+- **Parametro `tabella`** in `parcella_avvocato_civile`, e il risultato **dichiara sempre**
+  quale tabella ha applicato. Le fasi disponibili seguono la tabella: chiedere l'istruttoria
+  su un monitorio ora e' un errore esplicito, non un addendo silenzioso.
+- **Variazioni dell'art. 4** come parametri opzionali, con la catena dei passaggi in chiaro:
+  +30% atti telematici navigabili (c. 1-bis), +30% per assistito oltre il primo fino a dieci
+  e +10% oltre (c. 2), +20% entrambi i coniugi (c. 3), −30% posizioni non distinte (c. 4),
+  conciliazione = fase decisionale +1/4 (c. 6), +50% sulla decisionale in cassazione con
+  memoria ex art. 378 c.p.c. (c. 10-quater).
+- **Il decreto contiene UN valore per fase**: il minimo e il massimo non stanno in tabella,
+  si ricavano applicando l'art. 4 c. 1. Il JSON conserva quindi solo i valori ufficiali e il
+  codice calcola ∓50%: prima min e max erano memorizzati come dati, dando l'impressione che
+  fossero tabellari.
+
+### 6.4 Provenienza verificabile
+
+Il testo ufficiale delle tabelle e' in `docs/dm55-2014-tabelle-ufficiali.txt` e
+`scripts/verifica-parametri-forensi.py` controlla che **ogni** valore del JSON compaia in
+quel testo, nella tabella e nell'ordine giusti: **269 valori riscontrati**. Una cifra
+sbagliata in una parcella non si vede a occhio, quindi non ci si affida alla rilettura.
+
+⚠️ Restano fuori dal riscontro gli scaglioni oltre € 520.000 e alcune colonne della tabella
+penale: Normattiva rende quella parte come immagine. Quei valori provengono dalla fonte
+secondaria originaria, sono marcati `_scaglioni_non_verificabili` e il tool lo **dice**
+nel campo `avvisi` quando il calcolo ci finisce dentro.
+
+Tabelle non ancora trascritte: Corte dei conti (11), Corte costituzionale e corti europee (14),
+accertamento del passivo (20-bis), TAR (21), Consiglio di Stato (22), tributarie (23 e 24).

@@ -17,63 +17,112 @@ def _call(fn_name: str, **kwargs):
 # ---------------------------------------------------------------------------
 
 class TestParcellaAvvocatoCivile:
+    """DM 55/2014 testo vigente. Valori riscontrati sul testo ufficiale da
+    scripts/verifica-parametri-forensi.py; qui si controlla il comportamento del tool."""
 
-    def test_happy_path_all_fasi(self):
+    def test_tribunale_default(self):
         r = _call("parcella_avvocato_civile", valore_causa=10000.0)
-        assert r["valore_causa"] == 10000.0
-        assert r["livello"] == "medio"
-        assert len(r["fasi"]) == 4
-        assert r["totale_compenso"] > 0
-        assert "DM 55/2014" in r["riferimento_normativo"]
+        assert r["totale_compenso"] == pytest.approx(5077.0)
+        assert "Tab. 2" in r["tabella_applicata"]
 
-    def test_scaglione_1100(self):
-        r = _call("parcella_avvocato_civile", valore_causa=1000.0, livello="medio")
-        # scaglione fino_a 1100: studio=131, introduttiva=131, istruttoria=200, decisionale=200
-        assert r["totale_compenso"] == pytest.approx(131 + 131 + 200 + 200, abs=0.01)
-        assert "1100" in r["scaglione"]
+    def test_ogni_tabella_ha_il_suo_importo(self):
+        """Stessa causa, tabelle diverse: e' il punto dell'intera modifica."""
+        attesi = {
+            "tribunale": 5077.0, "monitorio": 567.0, "locatizia": 2584.0,
+            "cautelare": 3503.0, "appello": 5809.0, "cassazione": 3082.0,
+            "esecuzione_presso_terzi": 1403.0, "giudice_di_pace": 2090.0,
+            "mediazione": 3043.0, "lavoro": 5388.0,
+        }
+        for tabella, atteso in attesi.items():
+            r = _call("parcella_avvocato_civile", valore_causa=10000.0, tabella=tabella)
+            assert r["totale_compenso"] == pytest.approx(atteso), tabella
 
-    def test_scaglione_5200(self):
-        r = _call("parcella_avvocato_civile", valore_causa=5000.0, livello="medio")
-        assert r["totale_compenso"] == pytest.approx(425 + 425 + 851 + 851, abs=0.01)
+    def test_monitorio_ha_una_sola_fase(self):
+        """Tab. 8: una voce unica per studio, istruttoria e fase conclusiva."""
+        r = _call("parcella_avvocato_civile", valore_causa=10000.0, tabella="monitorio")
+        assert [f["fase"] for f in r["fasi"]] == ["fase_unica"]
+        r2 = _call("parcella_avvocato_civile", valore_causa=10000.0, tabella="monitorio",
+                   fasi=["istruttoria"])
+        assert "errore" in r2
 
-    def test_scaglione_26000(self):
-        r = _call("parcella_avvocato_civile", valore_causa=20000.0, livello="medio")
-        assert r["totale_compenso"] == pytest.approx(919 + 777 + 1680 + 1701, abs=0.01)
+    def test_cassazione_senza_istruttoria(self):
+        r = _call("parcella_avvocato_civile", valore_causa=10000.0, tabella="cassazione")
+        assert "istruttoria" not in [f["fase"] for f in r["fasi"]]
+
+    def test_dichiara_la_tabella_applicata(self):
+        r = _call("parcella_avvocato_civile", valore_causa=10000.0, tabella="lavoro")
+        assert "Tab. 3" in r["tabella_applicata"]
+        assert "avvertenza" in r
+
+    def test_tabella_inesistente(self):
+        r = _call("parcella_avvocato_civile", valore_causa=10000.0, tabella="tribunale_ue")
+        assert "errore" in r and "tabelle_disponibili" in r
+
+    def test_min_max_sono_meta_e_una_volta_e_mezza(self):
+        """Art. 4 c. 1: aumento fino al 50%, diminuzione non oltre il 50%."""
+        med = _call("parcella_avvocato_civile", valore_causa=10000.0, livello="medio")["totale_compenso"]
+        mn = _call("parcella_avvocato_civile", valore_causa=10000.0, livello="min")["totale_compenso"]
+        mx = _call("parcella_avvocato_civile", valore_causa=10000.0, livello="max")["totale_compenso"]
+        assert mn == pytest.approx(med * 0.5)
+        assert mx == pytest.approx(med * 1.5)
+
+    def test_aumento_telematico_30_pct(self):
+        """Art. 4 c. 1-bis."""
+        base = _call("parcella_avvocato_civile", valore_causa=50000.0)["totale_compenso"]
+        r = _call("parcella_avvocato_civile", valore_causa=50000.0, atti_telematici=True)
+        assert r["totale_compenso"] == pytest.approx(base * 1.30)
+
+    def test_piu_soggetti_assistiti(self):
+        """Art. 4 c. 2: +30% per ciascuno oltre il primo fino a dieci."""
+        base = _call("parcella_avvocato_civile", valore_causa=50000.0)["totale_compenso"]
+        r = _call("parcella_avvocato_civile", valore_causa=50000.0, soggetti_assistiti=3)
+        assert r["totale_compenso"] == pytest.approx(base * 1.60)
+        r12 = _call("parcella_avvocato_civile", valore_causa=50000.0, soggetti_assistiti=12)
+        assert r12["totale_compenso"] == pytest.approx(base * (1 + (9 * 30 + 2 * 10) / 100))
+
+    def test_soggetti_oltre_trenta_rifiutati(self):
+        r = _call("parcella_avvocato_civile", valore_causa=50000.0, soggetti_assistiti=31)
+        assert "errore" in r
+
+    def test_entrambi_i_coniugi_20_pct(self):
+        """Art. 4 c. 3."""
+        base = _call("parcella_avvocato_civile", valore_causa=50000.0)["totale_compenso"]
+        r = _call("parcella_avvocato_civile", valore_causa=50000.0, entrambi_i_coniugi=True)
+        assert r["totale_compenso"] == pytest.approx(base * 1.20)
+
+    def test_posizioni_non_distinte_meno_30(self):
+        """Art. 4 c. 4."""
+        base = _call("parcella_avvocato_civile", valore_causa=50000.0)["totale_compenso"]
+        r = _call("parcella_avvocato_civile", valore_causa=50000.0, posizioni_non_distinte=True)
+        assert r["totale_compenso"] == pytest.approx(base * 0.70)
+
+    def test_memoria_378_solo_in_cassazione(self):
+        """Art. 4 c. 10-quater."""
+        r = _call("parcella_avvocato_civile", valore_causa=50000.0, memoria_378_cpc=True)
+        assert "errore" in r
+        ok = _call("parcella_avvocato_civile", valore_causa=50000.0, tabella="cassazione",
+                   memoria_378_cpc=True)
+        senza = _call("parcella_avvocato_civile", valore_causa=50000.0, tabella="cassazione")
+        assert ok["totale_compenso"] > senza["totale_compenso"]
 
     def test_fasi_parziali(self):
         r = _call("parcella_avvocato_civile", valore_causa=10000.0, fasi=["studio", "introduttiva"])
         assert len(r["fasi"]) == 2
-        assert r["totale_compenso"] == pytest.approx(919 + 777, abs=0.01)
-
-    def test_livello_min(self):
-        r_min = _call("parcella_avvocato_civile", valore_causa=10000.0, livello="min")
-        r_max = _call("parcella_avvocato_civile", valore_causa=10000.0, livello="max")
-        assert r_min["totale_compenso"] < r_max["totale_compenso"]
+        assert r["totale_compenso"] == pytest.approx(919.0 + 777.0)
 
     def test_livello_invalido(self):
         r = _call("parcella_avvocato_civile", valore_causa=10000.0, livello="sbagliato")
         assert "errore" in r
 
-    def test_fase_invalida(self):
-        r = _call("parcella_avvocato_civile", valore_causa=10000.0, fasi=["studio", "inesistente"])
-        assert "errore" in r
+    def test_scaglione_alto_avvisa_che_non_e_verificato(self):
+        r = _call("parcella_avvocato_civile", valore_causa=3_000_000.0)
+        assert any("non riscontrabile" in a for a in r["avvisi"])
 
-    def test_scaglione_oltre(self):
-        r = _call("parcella_avvocato_civile", valore_causa=50_000_000.0, livello="medio")
+    def test_oltre_ultimo_scaglione(self):
+        r = _call("parcella_avvocato_civile", valore_causa=50_000_000.0)
         assert "oltre" in r["scaglione"]
-        assert r["totale_compenso"] > 0
+        assert len(r["avvisi"]) >= 1
 
-    def test_dettaglio_fasi_structure(self):
-        r = _call("parcella_avvocato_civile", valore_causa=10000.0)
-        for fase in r["fasi"]:
-            assert "fase" in fase
-            assert "importo" in fase
-            assert fase["importo"] > 0
-
-
-# ---------------------------------------------------------------------------
-# parcella_avvocato_penale
-# ---------------------------------------------------------------------------
 
 class TestParcellaAvvocatoPenale:
 
