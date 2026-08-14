@@ -1,9 +1,9 @@
 {
   "_description": "Tabelle danno biologico — micropermanenti art. 139 CdA (DM 2025) e macropermanenti (tabella unica nazionale DM 2024)",
   "micropermanenti": {
-    "_note": "Art. 139 Cod. Assicurazioni — DM 18/07/2025 (GU n.176 31/07/2025), in vigore da aprile 2025. Coefficienti progressione: Allegato A, art. 5 L.57/2001. anno_ultimo_dm alimenta il freshness check (scripts/update-data.py).",
-    "anno_ultimo_dm": 2025,
-    "punto_base": 963.40,
+    "_note": "Art. 139 Cod. Assicurazioni — DM 20/07/2025 sostituito dal DM 20 luglio 2026 (GU n.173 del 28/07/2026), in vigore da aprile 2026. Coefficienti del comma 6 dell'art. 139. anno_ultimo_dm alimenta il freshness check (scripts/update-data.py).",
+    "anno_ultimo_dm": 2026,
+    "punto_base": 988.45,
     "coefficienti_punto": {
       "1": 1.0,
       "2": 1.1,
@@ -18,13 +18,14 @@
     "decremento_eta_pct_per_anno": 0.5,
     "eta_decremento_da": 10,
     "maggiorazione_morale_max_pct": 20.0,
-    "invalidita_temporanea_totale_giornaliera": 56.18,
-    "invalidita_temporanea_parziale_75_pct": 42.14,
-    "invalidita_temporanea_parziale_50_pct": 28.09,
-    "invalidita_temporanea_parziale_25_pct": 14.05
+    "invalidita_temporanea_totale_giornaliera": 57.64,
+    "invalidita_temporanea_parziale_75_pct": 43.23,
+    "invalidita_temporanea_parziale_50_pct": 28.82,
+    "invalidita_temporanea_parziale_25_pct": 14.41,
+    "_formula": "danno permanente = punto_base x coefficiente(N) x N punti x (1 - 0,005 x (eta - 10)). NON si sommano i valori dei singoli punti: il comma 6 assegna UN coefficiente al grado complessivo di invalidita'. La somma sottostimava fino al 34%."
   },
   "macropermanenti": {
-    "_note": "Tabella unica nazionale ex art. 138 CdA (DM 2024). Valori punto per percentuale invalidità. I valori reali variano per età — qui riportati i valori medi indicativi.",
+    "_note": "STIMA, NON UNA TABELLA UFFICIALE. L'art. 138 CdA richiede una tabella unica nazionale adottata con DPR (art. 1 c.18 L. 124/2017: si applica ai sinistri successivi alla sua entrata in vigore). I valori qui riportati sono medi indicativi e i coefficienti per eta' sono a scaglioni decennali: NON riproducono nessuna tabella reale (ne' la TUN ne' Milano). Usare solo per un ordine di grandezza.",
     "punto_base": {
       "10": 2680,
       "15": 3800,
@@ -48,16 +49,17 @@
     },
     "coefficiente_eta": {
       "_note": "Moltiplicatore decrescente per età dell'avente diritto",
-      "0-10": 1.50,
-      "11-20": 1.40,
-      "21-30": 1.30,
-      "31-40": 1.20,
-      "41-50": 1.10,
-      "51-60": 1.00,
+      "0-10": 1.5,
+      "11-20": 1.4,
+      "21-30": 1.3,
+      "31-40": 1.2,
+      "41-50": 1.1,
+      "51-60": 1.0,
       "61-70": 0.85,
-      "71-80": 0.70,
+      "71-80": 0.7,
       "81-90": 0.55,
-      "91-100": 0.40
-    }
+      "91-100": 0.4
+    },
+    "personalizzazione_max_pct": 30.0
   }
 }

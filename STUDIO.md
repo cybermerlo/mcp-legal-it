@@ -120,3 +120,67 @@ completo. Il PDF e' pubblico e senza credenziali come il resto di SentenzeWeb.
 **Limite che resta**: l'archivio pubblico copre **dal 2021 in avanti** (civile
 188.630 provvedimenti, penale 236.093). Prima del 2021 non c'e' nulla, e non ci
 sono ne' le massime del CED ne' la giurisprudenza di merito.
+
+## 5. Risarcimento danni — correzioni sostanziali (2026-08-14)
+
+I tool `danni` dell'upstream restituivano importi **plausibili e piu' bassi del dovuto**, con
+sotto la citazione dell'articolo di legge: il modo peggiore di sbagliare. Quattro correzioni.
+
+### 5.1 Micropermanenti: la formula era sbagliata
+
+L'upstream **sommava** il valore dei singoli punti (1%+2%+...+N%). L'art. 139 c. 6 CdA assegna
+invece **un solo coefficiente al grado complessivo** di invalidita':
+
+```
+danno permanente = punto_base x coefficiente(N) x N punti x (1 - 0,005 x (eta - 10))
+```
+
+Effetto della correzione (valori DM 2026):
+
+| Caso | Prima | Dopo |
+|---|---:|---:|
+| 2% a 35 anni | 1.770,25 € | 1.902,77 € |
+| 6% a 40 anni | 6.387,34 € | 8.569,86 € |
+| 9% a 40 anni | 11.546,35 € | 17.391,78 € |
+
+Sul 9% erano **5.845 € in meno**, su una tabella *di legge* (vincolante per RCA e, tramite la
+Gelli-Bianco, per la responsabilita' sanitaria).
+
+### 5.2 Valori fermi al DM 2025
+
+Aggiornati al **DM 20 luglio 2026** (GU n. 173 del 28/07/2026): primo punto **988,45 €**,
+inabilita' assoluta **57,64 €**/giorno. Le parziali sono ricavate per percentuale, come vuole
+l'art. 139 c. 1 lett. b), invece di essere costanti separate.
+
+### 5.3 Macropermanenti: tetto di legge e avvertenza
+
+- La personalizzazione era ammessa **fino al 50%**; l'art. 138 c. 3 dice **fino al 30%**.
+- Il riferimento stampato in calce («Tabella unica nazionale DM 2024») era sbagliato: l'art. 138
+  c. 1 richiede un **DPR**, e l'art. 1 c. 18 L. 124/2017 ne lega l'applicabilita' ai sinistri
+  successivi alla sua entrata in vigore.
+- I valori restano **medi indicativi** con coefficienti per eta' a scaglioni decennali: non
+  riproducono ne' la TUN ne' Milano. Ora il risultato lo **dichiara** in un campo `avvertenza`.
+
+### 5.4 Danno parentale: dalle forbici inventate al sistema a punti
+
+L'upstream usava forbici min-max, e la «tabella di Roma» era **sintetizzata** scalando Milano
+(lo diceva il file stesso: *«Nessuna tabella ufficiale Roma 2024 pubblicata»*). Sostituite con
+le tabelle reali:
+
+- **Milano** — Osservatorio giustizia civile, tabelle integrate a punti ed. 28/06/2022, in
+  attuazione di **Cass. 10579/2021** (che impone il sistema a punti: le forbici non sono piu'
+  un criterio conforme). Due tabelle: genitore/figlio/coniuge (valore punto 3.365,00 €, cap
+  336.500,00 €) e fratello/nipote (1.461,20 €, cap 146.120,00 €). Parametri A-E.
+- **Roma** — Tribunale di Roma ed. 2025, valore punto 11.549,20 €, punti per grado di parentela,
+  eta' della vittima, eta' del congiunto, convivenza.
+
+**Validazione**: l'implementazione riproduce **13 su 13** degli esempi di calcolo ufficiali
+dell'Allegato 1 del PDF di Milano. Il quattordicesimo (esempio 5, ipotesi media) e' un **refuso
+della fonte**: dichiara 285.025,00 € ma i suoi stessi 85 punti x 3.365,00 fanno 286.025,00 €, e
+gli altri due valori dello stesso esempio tornano. Prevale l'aritmetica.
+
+Due scelte di trasparenza: i correttivi discrezionali di Roma (riduzioni e aumenti frazionari)
+**non** sono applicati d'ufficio ma elencati nella risposta; e la fascia 71-80 dell'eta' del
+congiunto nella tabella di Roma vale 2,5 punti mentre nella scala della vittima vale 1,5 — pare
+un refuso della fonte, ma e' riprodotto **com'e' stampato**, con avviso: correggerlo d'ufficio
+significherebbe liquidare su una tabella che non esiste.

@@ -61,7 +61,8 @@ def danno_biologico_micro(
 ) -> dict:
     """Calcola il danno biologico per MICROPERMANENTI (≤9% di invalidità).
     Applica art. 139 Codice delle Assicurazioni (D.Lgs. 209/2005).
-    Vigenza: tabelle aggiornate al DM 18/07/2025.
+    Vigenza: DM 20 luglio 2026 (GU n.173 del 28/07/2026), valori in vigore da aprile 2026.
+    Formula: punto_base x coefficiente(N) x N punti x (1 - 0,005 x (eta - 10)).
     Precisione: ESATTO (formula di legge applicata ai valori tabellari vigenti).
 
     Usa questo quando: sinistro stradale o sanitario con invalidità permanente tra 1% e 9%.
@@ -100,13 +101,18 @@ def danno_biologico_micro(
     else:
         riduzione = 1.0
 
-    danno_permanente = 0.0
-    dettaglio_punti = []
-    for p in range(1, percentuale_invalidita + 1):
-        coeff = coefficienti[str(p)]
-        valore_punto = punto_base * coeff * riduzione
-        danno_permanente += valore_punto
-        dettaglio_punti.append({"percentuale": p, "coefficiente": coeff, "valore": round(valore_punto, 2)})
+    # Art. 139 c. 1 lett. a) + c. 6: al grado COMPLESSIVO di invalidita' corrisponde UN
+    # coefficiente, che si applica al valore del primo punto moltiplicato per i punti.
+    #   danno = punto_base x coefficiente(N) x N x riduzione_eta
+    # ⚠️ Non e' la somma dei valori dei singoli punti: quella sottostimava fino al 34%
+    #    (9% a 40 anni: 11.546 € invece di 17.392 €). Correzione del 2026-08-14.
+    coeff = coefficienti[str(percentuale_invalidita)]
+    danno_permanente = punto_base * coeff * percentuale_invalidita * riduzione
+    dettaglio_punti = [{
+        "percentuale": percentuale_invalidita,
+        "coefficiente": coeff,
+        "valore_punto_applicato": round(punto_base * coeff * riduzione, 2),
+    }]
 
     # Invalidità temporanea
     itt = giorni_itt * _MICRO["invalidita_temporanea_totale_giornaliera"]
@@ -140,7 +146,8 @@ def danno_biologico_micro(
         "maggiorazione_morale": round(maggiorazione_morale, 2),
         "totale_risarcimento": round(totale, 2),
         "dettaglio_punti": dettaglio_punti,
-        "riferimento_normativo": "Art. 139 Cod. Assicurazioni (D.Lgs. 209/2005) — DM 18/07/2025",
+        "riferimento_normativo": "Art. 139 Cod. Assicurazioni (D.Lgs. 209/2005) — DM 20 luglio 2026 (GU 28/07/2026 n. 173)",
+        "formula": "punto_base x coefficiente(N) x N punti x (1 - 0,005 x (eta - 10))",
     }
 
 
@@ -151,10 +158,12 @@ def danno_biologico_macro(
     personalizzazione_pct: float = 0,
 ) -> dict:
     """Calcola il danno biologico per MACROPERMANENTI (≥10% di invalidità).
-    Applica art. 138 Codice delle Assicurazioni (D.Lgs. 209/2005) con tabella unica nazionale.
-    Vigenza: Tabella unica nazionale DM 2024 — valori Milano per interpolazione.
-    Precisione: INDICATIVO (interpolazione lineare sui punti tabellari; il valore esatto
-    dipende dalla tabella unica nazionale definitiva ex art. 138 CdA, ancora in via di adozione).
+    ⚠️ STIMA, NON UNA LIQUIDAZIONE. I valori usati sono medi indicativi e i coefficienti per
+    eta' sono a scaglioni decennali: NON riproducono ne' la tabella unica nazionale ex art. 138
+    CdA (che va adottata con DPR e si applica ai soli sinistri successivi alla sua entrata in
+    vigore, art. 1 c. 18 L. 124/2017) ne' le tabelle di Milano. Serve per un ordine di grandezza:
+    per la liquidazione vera occorre la tabella applicabile al caso.
+    Precisione: INDICATIVO.
 
     Usa questo quando: sinistro stradale o sanitario con invalidità permanente tra 10% e 100%.
     NON usare per: invalidità <10% → usa danno_biologico_micro().
@@ -164,7 +173,7 @@ def danno_biologico_macro(
     Args:
         percentuale_invalidita: Percentuale di invalidità permanente (10-100)
         eta_vittima: Età della vittima al momento del sinistro (0-120)
-        personalizzazione_pct: Percentuale di personalizzazione per danno morale (0-50)
+        personalizzazione_pct: Personalizzazione ex art. 138 c. 3 (0-30)
     """
     if not 10 <= percentuale_invalidita <= 100:
         return {"errore": "Macropermanenti: percentuale deve essere tra 10 e 100"}
@@ -172,8 +181,9 @@ def danno_biologico_macro(
     if not 0 <= eta_vittima <= 120:
         return {"errore": "Età non valida"}
 
-    if personalizzazione_pct < 0 or personalizzazione_pct > 50:
-        return {"errore": "Personalizzazione macropermanenti deve essere tra 0 e 50%"}
+    # Art. 138 c. 3: aumento "fino al 30 per cento". Il tetto del 50% era fuori legge.
+    if personalizzazione_pct < 0 or personalizzazione_pct > 30:
+        return {"errore": "Art. 138 c. 3 Cod. Ass.: la personalizzazione non puo' superare il 30%"}
 
     punto_base = _interpola_punto_base(percentuale_invalidita)
     coeff_eta = _coefficiente_eta(eta_vittima)
@@ -192,69 +202,166 @@ def danno_biologico_macro(
         "personalizzazione_pct": personalizzazione_pct,
         "maggiorazione_morale": round(maggiorazione_morale, 2),
         "totale_risarcimento": round(totale, 2),
-        "riferimento_normativo": "Art. 138 Cod. Assicurazioni (D.Lgs. 209/2005) — Tabella unica nazionale DM 2024",
+        "personalizzazione_max_pct": 30.0,
+        "avvertenza": (
+            "STIMA, non una liquidazione: valori medi indicativi e coefficienti per eta' a scaglioni "
+            "decennali, che non riproducono ne' la TUN ex art. 138 CdA ne' le tabelle di Milano. "
+            "Per la liquidazione usare la tabella applicabile al caso."
+        ),
+        "riferimento_normativo": "Art. 138 Cod. Assicurazioni (D.Lgs. 209/2005) — tetto personalizzazione 30% (c. 3)",
     }
+
+
+def _punti_fascia(tabella_eta: dict, eta: int) -> tuple[int, float]:
+    """Restituisce (punti, fascia) per l'eta' data, sulle fasce 'da-a' della tabella."""
+    for chiave, punti in tabella_eta.items():
+        if chiave.startswith("_"):
+            continue
+        low, high = map(int, chiave.split("-"))
+        if low <= eta <= high:
+            return punti, chiave
+    return 0, "fuori scala"
 
 
 @mcp.tool(tags={"danni"})
 def danno_parentale(
-    vittima: str,
-    superstite: str,
+    eta_vittima: int,
+    eta_superstite: int,
     tabella: str = "milano",
-    personalizzazione_pct: float = 50,
+    rapporto: str = "genitore_figlio_coniuge",
+    convivenza: str = "non_conviventi",
+    superstiti_nucleo: int = 1,
+    punti_qualita_relazione: int = 0,
+    relazione_roma: str = "",
 ) -> dict:
-    """Calcola il danno da perdita del rapporto parentale (danno morale da morte del congiunto).
-    Vigenza: Tabelle di Milano 2024 e Roma 2024 (aggiornate con Cass. SU 26972/2008 e successive).
-    Precisione: INDICATIVO (forchetta min-max; il valore finale dipende dalla personalizzazione
-    giudiziale sulle concrete circostanze del rapporto e del lutto).
+    """Liquida il danno da perdita del rapporto parentale con il SISTEMA A PUNTI.
 
-    Usa questo quando: richiesta risarcimento per morte del congiunto in sinistro o illecito.
-    NON usare per: danno biologico del superstite (es. disturbo dell'adattamento) → usa danno_biologico_micro/macro().
-    Chaining: → rivalutazione_monetaria() per attualizzare l'importo
+    Vigenza: Milano — Osservatorio giustizia civile, tabelle integrate a punti ed. 28/06/2022.
+             Roma — Tribunale di Roma, tabella ed. 2025 (valore punto 11.549,20 €).
+    Precisione: ESATTO sui parametri oggettivi (eta', convivenza, superstiti, grado di parentela).
+    Il parametro discrezionale resta a te: a Milano e' la 'qualita' e intensita' della relazione'
+    (0-30 punti), che da sola vale fino a 100.950 € sulla tabella genitori/figli/coniuge.
+
+    Perche' a punti: Cass. 10579/2021 impone una tabella che elenchi le circostanze rilevanti
+    (eta' della vittima, eta' del superstite, grado di parentela, convivenza) con i relativi
+    punteggi. Le vecchie forbici min-max NON sono piu' un criterio conforme.
+
+    Usa questo quando: richiesta risarcimento iure proprio per morte del congiunto.
+    NON usare per: danno biologico del superstite → danno_biologico_micro/macro().
+    Chaining: → rivalutazione_monetaria() se la tabella e' di un'annualita' precedente.
 
     Args:
-        vittima: Ruolo della vittima deceduta (figlio, genitore, coniuge, fratello, nipote, nonno)
-        superstite: Ruolo del superstite richiedente il risarcimento (figlio, genitore, coniuge, fratello, nipote, nonno)
-        tabella: Tabella di riferimento: 'milano' o 'roma'
-        personalizzazione_pct: Posizione nel range min-max (0=minimo, 50=mediano, 100=massimo)
+        eta_vittima: Eta' della vittima primaria (il deceduto) al momento del decesso
+        eta_superstite: Eta' del congiunto superstite che chiede il risarcimento
+        tabella: 'milano' (default) o 'roma'
+        rapporto: SOLO Milano — 'genitore_figlio_coniuge' (include unione civile e convivente
+                  di fatto) oppure 'fratello_nipote'
+        convivenza: Milano tab. A: 'conviventi' | 'stesso_stabile' | 'non_conviventi'.
+                  Milano tab. B: anche 'conviventi_oltre_30_anni' | 'conviventi_oltre_40_anni'.
+                  Roma: 'conviventi' o 'non_conviventi'
+        superstiti_nucleo: SOLO Milano — quanti altri congiunti del nucleo familiare primario
+                  del de cuius sono in vita (0, 1, 2, 3): meno superstiti, piu' punti
+        punti_qualita_relazione: SOLO Milano — parametro E, qualita' e intensita' della
+                  relazione perduta (0-30). E' il parametro discrezionale: 0 = minimo tabellare
+        relazione_roma: SOLO Roma — grado di parentela: genitore, figlio, coniuge, convivente,
+                  unione_civile, fratello, avo, nipote, zio, cugino
     """
-    tabella = tabella.lower()
-    vittima = vittima.lower()
-    superstite = superstite.lower()
+    tabella = tabella.lower().strip()
+    if tabella not in ("milano", "roma"):
+        return {"errore": "Tabella non valida: usare 'milano' o 'roma'"}
+    if not 0 <= eta_vittima <= 120 or not 0 <= eta_superstite <= 120:
+        return {"errore": "Eta' non valida"}
 
-    if tabella not in _PARENTALE:
-        return {"errore": f"Tabella non valida. Valori ammessi: milano, roma"}
+    if tabella == "milano":
+        rapporto = rapporto.lower().strip()
+        tab = _PARENTALE["milano"].get(rapporto)
+        if tab is None:
+            return {"errore": "rapporto non valido: 'genitore_figlio_coniuge' o 'fratello_nipote'"}
+        if not 0 <= punti_qualita_relazione <= tab["qualita_relazione_max"]:
+            return {"errore": f"punti_qualita_relazione deve essere tra 0 e {tab['qualita_relazione_max']}"}
 
-    if personalizzazione_pct < 0 or personalizzazione_pct > 100:
-        return {"errore": "personalizzazione_pct deve essere tra 0 e 100"}
+        punti_a, fascia_a = _punti_fascia(tab["eta_vittima_primaria"], eta_vittima)
+        punti_b, fascia_b = _punti_fascia(tab["eta_vittima_secondaria"], eta_superstite)
 
-    rapporti = _PARENTALE[tabella]["rapporti"]
-    match = None
-    for r in rapporti:
-        if r["vittima"] == vittima and r["superstite"] == superstite:
-            match = r
-            break
+        conv = convivenza.lower().strip()
+        if conv not in tab["convivenza"]:
+            return {"errore": f"convivenza non valida per questa tabella: {list(tab['convivenza'])}"}
+        punti_c = tab["convivenza"][conv]
 
-    if not match:
-        coppie = [f"{r['vittima']}/{r['superstite']}" for r in rapporti]
+        chiave_sup = str(min(max(superstiti_nucleo, 0), 3))
+        punti_d = tab["superstiti"][chiave_sup]
+
+        punti_totali = punti_a + punti_b + punti_c + punti_d + punti_qualita_relazione
+        importo = punti_totali * tab["valore_punto"]
+        cap_applicato = importo > tab["cap"]
+        if cap_applicato:
+            importo = tab["cap"]
+
         return {
-            "errore": f"Rapporto vittima={vittima}/superstite={superstite} non trovato",
-            "rapporti_disponibili": coppie,
+            "tabella": "Milano — Osservatorio giustizia civile, ed. 28/06/2022 (tabelle integrate a punti)",
+            "rapporto": rapporto,
+            "valore_punto": tab["valore_punto"],
+            "punti": {
+                "A_eta_vittima": {"eta": eta_vittima, "fascia": fascia_a, "punti": punti_a},
+                "B_eta_superstite": {"eta": eta_superstite, "fascia": fascia_b, "punti": punti_b},
+                "C_convivenza": {"situazione": conv, "punti": punti_c},
+                "D_superstiti_nucleo": {"numero": superstiti_nucleo, "punti": punti_d},
+                "E_qualita_relazione": {"punti": punti_qualita_relazione, "max": tab["qualita_relazione_max"]},
+            },
+            "punti_totali": punti_totali,
+            "punti_massimi_attribuibili": tab["punti_attribuibili"],
+            "importo_liquidato": round(importo, 2),
+            "cap": tab["cap"],
+            "cap_applicato": cap_applicato,
+            "avvertenza": (
+                "Il parametro E (qualita' e intensita' della relazione, 0-30 punti) e' discrezionale e "
+                "qui vale quanto indicato: con 0 punti si ottiene il MINIMO tabellare. Il totale non puo' "
+                "di regola superare il cap, salvo circostanze eccezionali; contrasti gravi o reati della "
+                "vittima secondaria verso la primaria possono ridurre fino ad azzerare l'importo."
+            ),
+            "riferimento": "Cass. 10579/2021 — sistema a punti obbligatorio per il danno parentale",
         }
 
-    importo_min = match["min"]
-    importo_max = match["max"]
-    importo = importo_min + (importo_max - importo_min) * (personalizzazione_pct / 100)
+    # ---------------- Roma 2025 ----------------
+    tab = _PARENTALE["roma"]
+    rel = (relazione_roma or "").lower().strip()
+    if rel not in tab["relazione"]:
+        return {
+            "errore": "Per la tabella di Roma serve 'relazione_roma'",
+            "valori_ammessi": list(tab["relazione"]),
+        }
+    punti_rel = tab["relazione"][rel]
+    punti_ev, fascia_ev = _punti_fascia(tab["eta_vittima"], eta_vittima)
+    punti_ec, fascia_ec = _punti_fascia(tab["eta_congiunto"], eta_superstite)
+    conviventi = convivenza.lower().strip() in ("conviventi", "convivenza", "si", "true")
+    punti_conv = tab["convivenza"]["convivenza_con_de_cuius"] if conviventi else 0
+
+    punti_totali = punti_rel + punti_ev + punti_ec + punti_conv
+    importo = punti_totali * tab["valore_punto"]
 
     return {
-        "vittima": vittima,
-        "superstite": superstite,
-        "tabella": tabella,
-        "importo_minimo": importo_min,
-        "importo_massimo": importo_max,
-        "personalizzazione_pct": personalizzazione_pct,
+        "tabella": "Roma — Tribunale di Roma, ed. 2025",
+        "relazione": rel,
+        "valore_punto": tab["valore_punto"],
+        "punti": {
+            "relazione": punti_rel,
+            "eta_vittima": {"eta": eta_vittima, "fascia": fascia_ev, "punti": punti_ev},
+            "eta_congiunto": {"eta": eta_superstite, "fascia": fascia_ec, "punti": punti_ec},
+            "convivenza": {"conviventi": conviventi, "punti": punti_conv},
+        },
+        "punti_totali": punti_totali,
         "importo_liquidato": round(importo, 2),
-        "riferimento": _PARENTALE[tabella]["_note"],
+        "correttivi_NON_applicati": [
+            "assenza di altri familiari conviventi: +3 punti",
+            "assenza di familiari entro il 2^ grado: aumento da 1/3 alla meta' del punteggio complessivo",
+            "non convivenza: riduzione fino a 1/2 del punteggio complessivo",
+            "punteggio della relazione riducibile fino a 1/2, o azzerabile se manca il vincolo affettivo",
+        ],
+        "avvertenza": (
+            "I correttivi sopra sono rimessi al giudice e NON sono applicati d'ufficio. "
+            + tab["_nota_eta_congiunto"]
+        ),
+        "riferimento": "Cass. 10579/2021 — sistema a punti obbligatorio per il danno parentale",
     }
 
 
