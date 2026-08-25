@@ -1,4 +1,11 @@
 {
+  "_vintage": {
+    "aggiornato_al": "2026-08-14",
+    "copre_fino_a": "2027-03-31",
+    "fonte": "art. 139 Cod. Ass. — DM 20 luglio 2026 (GU n.173 del 28/07/2026); macropermanenti: stima, non una tabella ufficiale",
+    "verifica": "manuale",
+    "nota": "Micropermanenti: valori del DM 2026 letti dal testo vigente su Normattiva, in vigore da aprile 2026; il DM e' annuale, quindi la copertura si esaurisce con l'aggiornamento di aprile. Macropermanenti: valori medi indicativi con coefficienti per eta' a scaglioni decennali, NON riproducono ne' la TUN ex art. 138 CdA ne' Milano."
+  },
   "_description": "Tabelle danno biologico — micropermanenti art. 139 CdA (DM 2025) e macropermanenti (tabella unica nazionale DM 2024)",
   "micropermanenti": {
     "_note": "Art. 139 Cod. Assicurazioni — DM 20/07/2025 sostituito dal DM 20 luglio 2026 (GU n.173 del 28/07/2026), in vigore da aprile 2026. Coefficienti del comma 6 dell'art. 139. anno_ultimo_dm alimenta il freshness check (scripts/update-data.py).",

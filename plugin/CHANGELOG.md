@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.12.1] - 2026-08-24
+
+### Added
+- `cite_law()` resolves far more references: acts cited by name (Statuto dei
+  lavoratori, legge fallimentare, TUEL, statuto del contribuente, legge
+  Gelli-Bianco, Jobs Act and ~75 more), the EU treaties (TFUE, TUE, CDFUE),
+  and 21 EU compliance acts by acronym (DSA, DMA, Data Act, eIDAS, MiCA,
+  CSRD, CSDDD, PSD2, NIS...).
+- More ways to write a citation: `legge 241/1990`, `legge n. 241 del 1990`,
+  `reg. (UE) 2016/679`, `direttiva 95/46/CE`, `art. 111 della Costituzione`,
+  `t.u.e.l.`, `art. 2, comma 1, lett. a), del d.lgs. 231/2001`.
+- An unrecognised act name now comes back with the closest matches instead of
+  a bare error.
+
+### Fixed
+- Articles carrying a separate rubric came back as the heading alone.
+- EU treaties could not be retrieved at all.
+- `codice del Terzo settore` resolved to a wrong URN.
+
+## [2.12.0] - 2026-08-24
+
+### Added
+- ogni tabella di dati dichiara la propria provenienza e il periodo che copre, e
+  i 65 tool che ne usano una la stampano accanto al risultato: «tassi legali:
+  copre fino al 31/12/2026 (DM MEF 10 dicembre 2025)». Le 8 tabelle la cui
+  provenienza non e' ancora accertata lo dicono esplicitamente invece di tacere
+- `SECURITY.md` risponde alle domande di chi valuta il plugin prima di usarlo su
+  pratiche vere: nessuna telemetria, elenco completo degli host contattati, cosa
+  contengono le configurazioni annidate, come forkare e restare indipendenti
+
+### Fixed
+- la skill `esporta-documento` indicava per il PDF il venv locale dell'autore,
+  che su nessun'altra macchina esiste: ora usa `uv`, gia' prerequisito del plugin
+- il gate citazioni scattava su «costi», «costo» e «costante», letti come
+  Costituzione, e su norme citate dentro blocchi di codice — un esempio di output
+  non e' un'affermazione giuridica
+- il gate riconosceva solo `art. N`: `articolo 2043 del codice civile` e
+  `artt. 536 e 544 c.c.` passavano inosservati, e una `cite_law()` scritta per
+  esteso non copriva la citazione che aveva appena verificato
+
+## [2.11.1] - 2026-08-15
+
+### Fixed
+- the Desktop Extension (`.mcpb`) never started on Intel Macs: `cryptography` no longer
+  ships macOS x86_64 wheels, so the install tried to compile it from source and the
+  server stayed "disconnected". Pinned below 49 on that platform only
+- corrected the 2025 FOI index series, which was about one point too high and made every
+  rivalutazione and rent adjustment disagree with the official ISTAT figures published
+  in Gazzetta Ufficiale
+- TAR/CdS search works again after the 2026 reorganisation of the giustizia-amministrativa
+  portal
+- documentation now matches the code: the tool catalogue was missing 56 of the 218 tools,
+  and the skill, agent and hook lists named entries that no longer exist
+
 ## [2.11.0] - 2026-07-30
 
 ### Added

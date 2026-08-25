@@ -1,5 +1,11 @@
 {
-  "_description": "Danno da perdita del rapporto parentale — SISTEMI A PUNTI: Milano 2022 e Roma 2025 (fonte: PDF ufficiali forniti dallo studio, 2026-08-14).",
+  "_vintage": {
+    "aggiornato_al": "2026-08-14",
+    "fonte": "Osservatorio giustizia civile di Milano, tabelle integrate a punti ed. 28/06/2022; Tribunale di Roma, tabella ed. 2025",
+    "verifica": "manuale",
+    "nota": "trascritte dai PDF ufficiali; Milano validata su 13/13 esempi di calcolo dell'Allegato 1. NON sono le forbici min-max delle edizioni precedenti."
+  },
+  "_description": "Danno da perdita del rapporto parentale — SISTEMI A PUNTI: Milano 2022 e Roma 2025 (trascritti dai PDF ufficiali, 2026-08-14).",
   "_perche_a_punti": "Cass. 10579/2021 impone una tabella 'a punti' con elencazione delle circostanze rilevanti (eta' della vittima, eta' del superstite, grado di parentela, convivenza). Le forbici min-max delle vecchie edizioni NON sono piu' un criterio conforme.",
   "milano": {
     "_fonte": "Osservatorio sulla giustizia civile di Milano — Tabelle integrate a punti, edizione 28 giugno 2022 (in attuazione di Cass. 10579/2021)",

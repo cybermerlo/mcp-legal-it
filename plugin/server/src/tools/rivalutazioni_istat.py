@@ -1,16 +1,33 @@
-"""Rivalutazione monetaria con indici FOI ISTAT (disponibili dal 1947, base 2015=100):
-inflazione, adeguamento canoni (L. 392/1978 art. 32), TFR (art. 2120 c.c.)."""
+"""Rivalutazione monetaria con indici FOI ISTAT: inflazione, adeguamento canoni
+(L. 392/1978 art. 32), TFR (art. 2120 c.c.).
+
+Serie storica raccordata in base 2015=100. Dal gennaio 2026 ISTAT pubblica l'indice
+in base 2025=100 (ECOICOP v2): i valori 2026 sono raccordati con il coefficiente
+ufficiale 1,214 (GU n. 144 del 24-06-2026). Per le variazioni su 12/24 mesi che
+terminano in un mese dal 2026 in poi si usano le variazioni UFFICIALI dei comunicati
+ISTAT in GU ex art. 81 L. 392/1978 (fanno fede per l'adeguamento canoni); per gli
+altri periodi a cavallo del ribasamento il calcolo sulla serie raccordata può
+scostarsi fino a ±0,1 p.p. dagli arrotondamenti ufficiali.
+
+Serie disponibile dal 1990 all'ultimo mese pubblicato: i mesi mancanti vengono
+approssimati con il più vicino disponibile e la sostituzione è sempre segnalata
+nel campo `avvertenza` dei risultati."""
 
 import json
 from datetime import date
 from pathlib import Path
 
 from src.server import mcp
+from src.lib._data import sourced
 
 _DATA = Path(__file__).resolve().parent.parent / "data"
 
 with open(_DATA / "indici_foi.json") as f:
-    _INDICI_FOI = json.load(f)["indici"]
+    _FOI_DATA = json.load(f)
+
+_INDICI_FOI = _FOI_DATA["indici"]
+_VARIAZIONI_UFFICIALI = _FOI_DATA.get("variazioni_ufficiali", {})
+_RACCORDO_BASI = _FOI_DATA.get("raccordo_basi", {})
 
 with open(_DATA / "tassi_legali.json") as f:
     _TASSI_LEGALI = json.load(f)["tassi"]
@@ -20,37 +37,158 @@ def _parse_date(d: str) -> date:
     return date.fromisoformat(d)
 
 
-_FOI_FALLBACK_WARNINGS: list[str] = []
+def _get_foi_dettaglio(year: int, month: int) -> tuple[float, int, int] | None:
+    """Get the FOI index for year/month as (value, actual_year, actual_month).
 
-
-def _get_foi(year: int, month: int) -> float | None:
-    """Get FOI index for a given year/month, falling back to closest available."""
+    The actual pair differs from the requested one when that month is not (yet)
+    in the series: the closest available month/year is used as an approximation.
+    """
     y_str = str(year)
     m_str = f"{month:02d}"
 
     # Exact match
     if y_str in _INDICI_FOI and m_str in _INDICI_FOI[y_str]:
-        return _INDICI_FOI[y_str][m_str]
+        return _INDICI_FOI[y_str][m_str], year, month
 
     # Year exists but month missing — pick closest month
     if y_str in _INDICI_FOI:
         months = _INDICI_FOI[y_str]
         closest = min(months.keys(), key=lambda m: abs(int(m) - month))
-        return months[closest]
+        return months[closest], year, int(closest)
 
-    # Year missing — pick closest year
+    # Year missing — tolerate at most 1 year of distance (typically the current
+    # or next year before ISTAT publishes); farther gaps would silently swallow
+    # whole years of inflation, so fail closed instead.
     available_years = sorted(_INDICI_FOI.keys(), key=lambda y: abs(int(y) - year))
     if available_years:
-        best_year = available_years[0]
-        gap = abs(int(best_year) - year)
-        if gap > 1:
-            warning = f"ATTENZIONE: indice FOI per {year}/{m_str} non disponibile — usato anno {best_year} (distanza {gap} anni). Risultato approssimato."
-            _FOI_FALLBACK_WARNINGS.append(warning)
-        months = _INDICI_FOI[best_year]
-        closest_m = min(months.keys(), key=lambda m: abs(int(m) - month))
-        return months[closest_m]
+        best_year = int(available_years[0])
+        if abs(best_year - year) > 1:
+            return None
+        months = _INDICI_FOI[str(best_year)]
+        closest_m = min(
+            months.keys(),
+            key=lambda m: abs((best_year - year) * 12 + int(m) - month),
+        )
+        return months[closest_m], best_year, int(closest_m)
 
     return None
+
+
+def _foi_tracciato(sostituzioni: list, anno: int, mese: int) -> float | None:
+    """FOI lookup that records any month/year substitution in `sostituzioni`."""
+    dettaglio = _get_foi_dettaglio(anno, mese)
+    if dettaglio is None:
+        return None
+    valore, anno_usato, mese_usato = dettaglio
+    if (anno_usato, mese_usato) != (anno, mese):
+        coppia = ((anno, mese), (anno_usato, mese_usato))
+        if coppia not in sostituzioni:
+            sostituzioni.append(coppia)
+    return valore
+
+
+def _componi_avvertenza(parti: list) -> str | None:
+    if not parti:
+        return None
+    return (
+        "ATTENZIONE — " + "; ".join(parti) + ". Risultato INDICATIVO "
+        "(serie FOI disponibile dal 1990 all'ultimo mese pubblicato)."
+    )
+
+
+_MAX_SOSTITUZIONI_ELENCATE = 3
+
+
+def _formatta_avvertenza(sostituzioni: list) -> str | None:
+    """Human-readable warning for the substitutions collected by _foi_tracciato."""
+    parti = [
+        f"indice FOI {mese_r:02d}/{anno_r} non disponibile: usato {mese_u:02d}/{anno_u}"
+        for (anno_r, mese_r), (anno_u, mese_u) in sostituzioni
+    ]
+    if len(parti) > _MAX_SOSTITUZIONI_ELENCATE:
+        nascosti = len(parti) - _MAX_SOSTITUZIONI_ELENCATE
+        parti = parti[:_MAX_SOSTITUZIONI_ELENCATE]
+        parti.append(
+            f"altri {nascosti} mesi non disponibili approssimati allo stesso modo"
+        )
+    return _componi_avvertenza(parti)
+
+
+# First month published in the new base 2025=100, linked into the historical
+# series via the official raccordo coefficient.
+_MESE_RIBASAMENTO = (2026, 1)
+
+_COEFF_RACCORDO = _RACCORDO_BASI.get("coefficiente", 1.214)
+_COEFF_RACCORDO_TESTO = str(_COEFF_RACCORDO).replace(".", ",")
+
+_NOTA_RACCORDO = (
+    "Periodo a cavallo del ribasamento ISTAT (base 2025=100 da gennaio 2026): "
+    "variazione calcolata sulla serie raccordata con coefficiente ufficiale "
+    f"{_COEFF_RACCORDO_TESTO}; può differire fino a ±0,1 punti percentuali dalla "
+    "variazione ufficiale pubblicata in Gazzetta Ufficiale ex art. 81 L. 392/1978."
+)
+
+_NOTA_ARROTONDAMENTO_UFFICIALE = (
+    "Variazione ufficiale ex art. 81 L. 392/1978: l'eventuale scarto rispetto al "
+    "rapporto tra gli indici pubblicati dipende dagli arrotondamenti ufficiali ISTAT."
+)
+
+
+def _mesi_tra(dt_a: date, dt_b: date) -> int:
+    return (dt_b.year - dt_a.year) * 12 + (dt_b.month - dt_a.month)
+
+
+def _a_cavallo_ribasamento(dt_a: date, dt_b: date) -> bool:
+    return (dt_a.year, dt_a.month) < _MESE_RIBASAMENTO <= (dt_b.year, dt_b.month)
+
+
+def _variazione_ufficiale(dt_fine: date, lag_mesi: int) -> dict | None:
+    """Official ISTAT variation (GU ex art. 81 L. 392/1978) ending at dt_fine's month."""
+    if lag_mesi not in (12, 24):
+        return None
+    entry = _VARIAZIONI_UFFICIALI.get(str(dt_fine.year), {}).get(f"{dt_fine.month:02d}")
+    if not entry:
+        return None
+    pct = entry.get("annuale_pct" if lag_mesi == 12 else "biennale_pct")
+    if pct is None:
+        return None
+    nota = _NOTA_ARROTONDAMENTO_UFFICIALE
+    if not entry.get("gu"):
+        nota = (
+            "Variazione ufficiale ISTAT; comunicato ex art. 81 L. 392/1978 "
+            "in attesa di pubblicazione in Gazzetta Ufficiale."
+        )
+    return {"pct": pct, "fonte": entry.get("gu") or entry.get("fonte"), "nota": nota}
+
+
+def _variazione_foi(dt_a: date, dt_b: date) -> dict | None:
+    """FOI % variation between the months of dt_a and dt_b.
+
+    For exact 12/24-month pairs the official GU-published variation prevails
+    (authoritative for rent adjustments ex art. 32 L. 392/1978); otherwise the
+    variation is computed on the linked index series.
+    """
+    ufficiale = _variazione_ufficiale(dt_b, _mesi_tra(dt_a, dt_b))
+    if ufficiale is not None:
+        return {
+            "pct": ufficiale["pct"],
+            "metodo": "ufficiale (comunicato ISTAT in GU ex art. 81 L. 392/1978)",
+            "fonte": ufficiale["fonte"],
+            "nota": ufficiale["nota"],
+            "sostituzioni": [],
+        }
+    sostituzioni: list = []
+    foi_a = _foi_tracciato(sostituzioni, dt_a.year, dt_a.month)
+    foi_b = _foi_tracciato(sostituzioni, dt_b.year, dt_b.month)
+    if foi_a is None or foi_b is None or foi_a <= 0:
+        return None
+    return {
+        "pct": (foi_b - foi_a) / foi_a * 100,
+        "metodo": "calcolata (serie FOI raccordata, base 2015=100)",
+        "fonte": None,
+        "nota": _NOTA_RACCORDO if _a_cavallo_ribasamento(dt_a, dt_b) else None,
+        "sostituzioni": sostituzioni,
+    }
 
 
 def _get_tasso_legale(d: date) -> float:
@@ -65,6 +203,7 @@ def _days_in_year(year: int) -> int:
 
 
 @mcp.tool(tags={"rivalutazione"})
+@sourced("indici_foi", "tassi_legali")
 def rivalutazione_monetaria(
     capitale: float,
     data_inizio: str,
@@ -81,7 +220,8 @@ def rivalutazione_monetaria(
 
     Se con_interessi_legali=True, applica il criterio Cass. SU 1712/1995: interessi legali
     sul capitale rivalutato per ciascun anno (metodo più favorevole al creditore).
-    Vigenza: Indici FOI ISTAT base 2015=100, disponibili dal 1947 al mese più recente pubblicato.
+    Vigenza: Indici FOI ISTAT base 2015=100 raccordata (dal 2026 conversione dalla base
+    2025=100 con coefficiente ufficiale 1,214), disponibili dal 1990 al mese più recente pubblicato.
     Precisione: ESATTO (indici ISTAT ufficiali); INDICATIVO se la data richiesta è oltre l'ultimo indice disponibile (usa l'anno più prossimo).
     Spesso chiamato dopo danno_biologico_* o interessi_mora per attualizzare un importo.
 
@@ -100,8 +240,9 @@ def rivalutazione_monetaria(
     if dt_fine <= dt_inizio:
         return {"errore": "data_fine deve essere successiva a data_inizio"}
 
-    foi_inizio = _get_foi(dt_inizio.year, dt_inizio.month)
-    foi_fine = _get_foi(dt_fine.year, dt_fine.month)
+    sostituzioni: list = []
+    foi_inizio = _foi_tracciato(sostituzioni, dt_inizio.year, dt_inizio.month)
+    foi_fine = _foi_tracciato(sostituzioni, dt_fine.year, dt_fine.month)
 
     if foi_inizio is None or foi_fine is None:
         return {"errore": "Indici FOI non disponibili per le date richieste"}
@@ -119,8 +260,8 @@ def rivalutazione_monetaria(
         else:
             m_end = 12
 
-        foi_a = _get_foi(dt_inizio.year, dt_inizio.month)
-        foi_b = _get_foi(anno, m_end)
+        foi_a = foi_inizio
+        foi_b = _foi_tracciato(sostituzioni, anno, m_end)
         coeff_anno = foi_b / foi_a
         capitale_anno = round(capitale * coeff_anno, 2)
 
@@ -169,6 +310,8 @@ def rivalutazione_monetaria(
             "`capitale_rivalutato`: sarebbe la sovra-compensazione censurata da Cass. SS.UU. "
             "1712/1995. Per i debiti di valuta l'avvertenza non si applica."
         ),
+        # avvertenza dell'upstream sulle sostituzioni di indice (ribasamento 2025=100)
+        "avvertenza": _formatta_avvertenza(sostituzioni),
         "dettaglio_anni": dettaglio_anni,
     }
 
@@ -180,6 +323,7 @@ def rivalutazione_monetaria(
 
 
 @mcp.tool(tags={"rivalutazione"})
+@sourced("indici_foi")
 def rivalutazione_mensile(
     importo_mensile: float,
     data_inizio: str,
@@ -189,7 +333,8 @@ def rivalutazione_mensile(
 
     Utile per assegni di mantenimento arretrati o canoni mensili non corrisposti:
     ogni mensilità viene rivalutata individualmente dalla sua data fino a data_fine.
-    Vigenza: Indici FOI ISTAT base 2015=100, disponibili dal 1947 al mese più recente.
+    Vigenza: Indici FOI ISTAT base 2015=100 raccordata (dal 2026 conversione dalla base
+    2025=100 con coefficiente ufficiale 1,214), disponibili dal 1990 al mese più recente.
     Precisione: ESATTO (indici ISTAT ufficiali mese per mese).
 
     Args:
@@ -206,7 +351,8 @@ def rivalutazione_mensile(
     if dt_fine <= dt_inizio:
         return {"errore": "data_fine deve essere successiva a data_inizio"}
 
-    foi_fine = _get_foi(dt_fine.year, dt_fine.month)
+    sostituzioni: list = []
+    foi_fine = _foi_tracciato(sostituzioni, dt_fine.year, dt_fine.month)
     if foi_fine is None:
         return {"errore": "Indice FOI non disponibile per la data finale"}
 
@@ -217,7 +363,7 @@ def rivalutazione_mensile(
     month = dt_inizio.month
 
     while date(year, month, 1) <= dt_fine:
-        foi_mese = _get_foi(year, month)
+        foi_mese = _foi_tracciato(sostituzioni, year, month)
         if foi_mese is None:
             break
 
@@ -252,11 +398,13 @@ def rivalutazione_mensile(
         "totale_nominale": round(totale_nominale, 2),
         "totale_rivalutato": round(totale_rivalutato, 2),
         "differenza_totale": round(totale_rivalutato - totale_nominale, 2),
+        "avvertenza": _formatta_avvertenza(sostituzioni),
         "dettaglio_mensile": dettaglio,
     }
 
 
 @mcp.tool(tags={"rivalutazione"})
+@sourced("indici_foi")
 def adeguamento_canone_locazione(
     canone_annuo: float,
     data_stipula: str,
@@ -266,8 +414,14 @@ def adeguamento_canone_locazione(
     """Calcola l'adeguamento ISTAT del canone di locazione secondo L. 392/1978 art. 32.
 
     Per contratti liberi 4+4 si applica il 100% della variazione FOI; per concordati il 75%.
-    Vigenza: L. 392/1978 art. 32 — L. 431/1998; indici FOI ISTAT base 2015=100.
-    Precisione: ESATTO (indici ISTAT ufficiali; la percentuale applicabile dipende dal tipo di contratto).
+    Vigenza: L. 392/1978 art. 32 — L. 431/1998; indici FOI ISTAT (base 2015=100 raccordata;
+    dal 2026 base 2025=100, coefficiente di raccordo ufficiale 1,214).
+    Precisione: ESATTO — per periodi di 12 o 24 mesi che terminano in un mese dal gennaio 2026
+    in poi usa la variazione UFFICIALE del comunicato ISTAT in GU ex art. 81 L. 392/1978
+    (che fa fede per l'adeguamento; v. campi `metodo_variazione` e `fonte_variazione`);
+    per gli altri periodi a cavallo del ribasamento 2025=100 la variazione è calcolata
+    sulla serie raccordata e può differire fino a ±0,1 p.p. dagli arrotondamenti
+    ufficiali (v. campo `nota`).
 
     Args:
         canone_annuo: Canone annuo corrente in euro (€)
@@ -286,17 +440,31 @@ def adeguamento_canone_locazione(
     if dt_adeguamento <= dt_stipula:
         return {"errore": "data_adeguamento deve essere successiva a data_stipula"}
 
-    foi_stipula = _get_foi(dt_stipula.year, dt_stipula.month)
-    foi_adeguamento = _get_foi(dt_adeguamento.year, dt_adeguamento.month)
+    sostituzioni: list = []
+    foi_stipula = _foi_tracciato(sostituzioni, dt_stipula.year, dt_stipula.month)
+    foi_adeguamento = _foi_tracciato(
+        sostituzioni, dt_adeguamento.year, dt_adeguamento.month
+    )
 
     if foi_stipula is None or foi_adeguamento is None:
         return {"errore": "Indici FOI non disponibili per le date richieste"}
 
-    variazione_piena_pct = ((foi_adeguamento - foi_stipula) / foi_stipula) * 100
+    variazione = _variazione_foi(dt_stipula, dt_adeguamento)
+    if variazione is None:
+        return {"errore": "Indici FOI non disponibili per le date richieste"}
+
+    variazione_piena_pct = variazione["pct"]
     variazione_applicata_pct = variazione_piena_pct * (percentuale_istat / 100)
     canone_aggiornato = canone_annuo * (1 + variazione_applicata_pct / 100)
     canone_mensile_prima = canone_annuo / 12
     canone_mensile_dopo = canone_aggiornato / 12
+    avvertenza = _formatta_avvertenza(sostituzioni)
+    if avvertenza and "ufficiale" in variazione["metodo"]:
+        # Approximated indices are display-only here: the applied variation is
+        # the official one, and the warning must not cast doubt on it.
+        avvertenza += (
+            " La variazione applicata resta quella ufficiale ex art. 81 L. 392/1978."
+        )
 
     return {
         "canone_annuo_originario": canone_annuo,
@@ -306,6 +474,10 @@ def adeguamento_canone_locazione(
         "foi_stipula": foi_stipula,
         "foi_adeguamento": foi_adeguamento,
         "variazione_foi_piena_pct": round(variazione_piena_pct, 2),
+        "metodo_variazione": variazione["metodo"],
+        "fonte_variazione": variazione["fonte"],
+        "nota": variazione["nota"],
+        "avvertenza": avvertenza,
         "percentuale_istat_applicata": percentuale_istat,
         "variazione_applicata_pct": round(variazione_applicata_pct, 2),
         "canone_annuo_aggiornato": round(canone_aggiornato, 2),
@@ -316,6 +488,7 @@ def adeguamento_canone_locazione(
 
 
 @mcp.tool(tags={"rivalutazione"})
+@sourced("indici_foi")
 def calcolo_inflazione(
     data_inizio: str,
     data_fine: str,
@@ -323,8 +496,13 @@ def calcolo_inflazione(
     """Calcola la variazione percentuale di inflazione tra due date usando gli indici FOI ISTAT.
 
     Restituisce variazione cumulata, coefficiente di rivalutazione e inflazione media annua.
-    Vigenza: Indici FOI ISTAT base 2015=100, disponibili dal 1947 al mese più recente pubblicato.
-    Precisione: ESATTO (indici ISTAT ufficiali).
+    Vigenza: Indici FOI ISTAT base 2015=100 raccordata (dal 2026 base 2025=100, coefficiente
+    di raccordo ufficiale 1,214), disponibili dal 1990 al mese più recente pubblicato.
+    Precisione: ESATTO (indici ISTAT ufficiali). Per i periodi a cavallo del ribasamento
+    2025=100 (gennaio 2026) la variazione calcolata può differire fino a ±0,1 p.p. dalla
+    variazione ufficiale ex art. 81 L. 392/1978: quando la coppia di mesi coincide con un
+    periodo di 12/24 mesi pubblicato, il valore ufficiale è esposto in
+    `variazione_ufficiale_pct` (da preferire per usi legali, es. adeguamento canoni).
 
     Args:
         data_inizio: Data iniziale del periodo (formato YYYY-MM-DD)
@@ -336,8 +514,9 @@ def calcolo_inflazione(
     if dt_fine <= dt_inizio:
         return {"errore": "data_fine deve essere successiva a data_inizio"}
 
-    foi_inizio = _get_foi(dt_inizio.year, dt_inizio.month)
-    foi_fine = _get_foi(dt_fine.year, dt_fine.month)
+    sostituzioni: list = []
+    foi_inizio = _foi_tracciato(sostituzioni, dt_inizio.year, dt_inizio.month)
+    foi_fine = _foi_tracciato(sostituzioni, dt_fine.year, dt_fine.month)
 
     if foi_inizio is None or foi_fine is None:
         return {"errore": "Indici FOI non disponibili per le date richieste"}
@@ -347,7 +526,7 @@ def calcolo_inflazione(
     anni = (dt_fine - dt_inizio).days / 365.25
     inflazione_media_annua = ((coefficiente ** (1 / anni)) - 1) * 100 if anni > 0 else 0
 
-    return {
+    risultato = {
         "data_inizio": data_inizio,
         "data_fine": data_fine,
         "foi_inizio": foi_inizio,
@@ -360,8 +539,20 @@ def calcolo_inflazione(
         "esempio": f"100€ del {data_inizio} equivalgono a {round(100 * coefficiente, 2)}€ del {data_fine}",
     }
 
+    ufficiale = _variazione_ufficiale(dt_fine, _mesi_tra(dt_inizio, dt_fine))
+    if ufficiale is not None:
+        risultato["variazione_ufficiale_pct"] = ufficiale["pct"]
+        risultato["fonte_variazione_ufficiale"] = ufficiale["fonte"]
+    risultato["nota"] = (
+        _NOTA_RACCORDO if _a_cavallo_ribasamento(dt_inizio, dt_fine) else None
+    )
+    risultato["avvertenza"] = _formatta_avvertenza(sostituzioni)
+
+    return risultato
+
 
 @mcp.tool(tags={"rivalutazione"})
+@sourced("indici_foi")
 def rivalutazione_tfr(
     retribuzione_annua: float,
     anni_servizio: int,
@@ -371,7 +562,9 @@ def rivalutazione_tfr(
 
     Il TFR accantonato (1/13.5 della retribuzione annua) si rivaluta ogni anno con coefficiente:
     1.5% fisso + 75% della variazione FOI. Sull'importo rivalutato si applica imposta sostitutiva 17%.
-    Vigenza: Art. 2120 c.c.; indici FOI ISTAT base 2015=100 (disponibili dal 1947).
+    Vigenza: Art. 2120 c.c.; indici FOI ISTAT base 2015=100 raccordata (dal 2026 base
+    2025=100, coefficiente ufficiale 1,214). La variazione dicembre/dicembre usa il valore
+    UFFICIALE del comunicato ISTAT in GU quando pubblicato.
     Precisione: ESATTO per la formula di legge; INDICATIVO se la variazione FOI dell'anno non è ancora disponibile.
 
     Args:
@@ -388,19 +581,19 @@ def rivalutazione_tfr(
     accantonamento_annuo = retribuzione_annua / 13.5
     tfr_accumulato = 0.0
     dettaglio = []
+    sostituzioni: list = []
 
     for anno in range(anno_inizio, anno_cessazione):
         tfr_accumulato += accantonamento_annuo
 
         if anno > anno_inizio:
-            # FOI variation for the year
-            foi_dic_prec = _get_foi(anno - 1, 12)
-            foi_dic = _get_foi(anno, 12)
-
-            if foi_dic_prec and foi_dic and foi_dic_prec > 0:
-                variazione_foi = ((foi_dic - foi_dic_prec) / foi_dic_prec) * 100
-            else:
-                variazione_foi = 0.0
+            # December/December FOI variation (official GU value when published)
+            variazione = _variazione_foi(date(anno - 1, 12, 1), date(anno, 12, 1))
+            variazione_foi = variazione["pct"] if variazione is not None else 0.0
+            if variazione is not None:
+                for coppia in variazione["sostituzioni"]:
+                    if coppia not in sostituzioni:
+                        sostituzioni.append(coppia)
 
             # Coefficiente rivalutazione TFR: 1.5% fisso + 75% variazione FOI
             coeff_rival = 1.5 + 0.75 * variazione_foi
@@ -437,11 +630,13 @@ def rivalutazione_tfr(
         "imposta_sostitutiva_17_pct": round(imposta_sostitutiva, 2),
         "tfr_netto_rivalutazione": round(tfr_accumulato - imposta_sostitutiva, 2),
         "riferimento_normativo": "Art. 2120 c.c. — rivalutazione 1.5% fisso + 75% FOI ISTAT",
+        "avvertenza": _formatta_avvertenza(sostituzioni),
         "dettaglio_anni": dettaglio,
     }
 
 
 @mcp.tool(tags={"rivalutazione"})
+@sourced("indici_foi", "tassi_legali")
 def interessi_vari_capitale_rivalutato(
     capitale: float,
     data_inizio: str,
@@ -452,7 +647,8 @@ def interessi_vari_capitale_rivalutato(
 
     Versione estesa di rivalutazione_monetaria che permette di usare un tasso diverso da quello legale
     (es. tasso contrattuale, tasso BOT). Se tasso_personalizzato=None usa il tasso legale vigente per anno.
-    Vigenza: Indici FOI ISTAT base 2015=100, disponibili dal 1947 al mese più recente.
+    Vigenza: Indici FOI ISTAT base 2015=100 raccordata (dal 2026 conversione dalla base
+    2025=100 con coefficiente ufficiale 1,214), disponibili dal 1990 al mese più recente.
     Precisione: ESATTO (indici ISTAT ufficiali); tasso personalizzato non verificato rispetto ai tassi di legge.
 
     Args:
@@ -470,8 +666,9 @@ def interessi_vari_capitale_rivalutato(
     if dt_fine <= dt_inizio:
         return {"errore": "data_fine deve essere successiva a data_inizio"}
 
-    foi_inizio = _get_foi(dt_inizio.year, dt_inizio.month)
-    foi_fine = _get_foi(dt_fine.year, dt_fine.month)
+    sostituzioni: list = []
+    foi_inizio = _foi_tracciato(sostituzioni, dt_inizio.year, dt_inizio.month)
+    foi_fine = _foi_tracciato(sostituzioni, dt_fine.year, dt_fine.month)
 
     if foi_inizio is None or foi_fine is None:
         return {"errore": "Indici FOI non disponibili per le date richieste"}
@@ -483,7 +680,9 @@ def interessi_vari_capitale_rivalutato(
     totale_interessi = 0.0
 
     for anno in range(dt_inizio.year, dt_fine.year + 1):
-        foi_b = _get_foi(anno, 12 if anno != dt_fine.year else dt_fine.month)
+        foi_b = _foi_tracciato(
+            sostituzioni, anno, 12 if anno != dt_fine.year else dt_fine.month
+        )
         coeff_anno = foi_b / foi_inizio
         capitale_anno = capitale * coeff_anno
 
@@ -519,11 +718,13 @@ def interessi_vari_capitale_rivalutato(
         "totale_interessi": round(totale_interessi, 2),
         "totale_dovuto": round(capitale_rivalutato + totale_interessi, 2),
         "tasso_utilizzato": f"{tasso_personalizzato}% personalizzato" if tasso_personalizzato is not None else "tasso legale variabile",
+        "avvertenza": _formatta_avvertenza(sostituzioni),
         "dettaglio_anni": dettaglio_anni,
     }
 
 
 @mcp.tool(tags={"rivalutazione"})
+@sourced("indici_foi")
 def lettera_adeguamento_canone(
     locatore: str,
     conduttore: str,
@@ -536,8 +737,12 @@ def lettera_adeguamento_canone(
     """Genera il testo della lettera formale di comunicazione dell'adeguamento ISTAT del canone di locazione.
 
     Include calcolo del nuovo canone con indici FOI e riferimenti normativi pronti per l'invio al conduttore.
-    Vigenza: L. 392/1978 art. 32 — L. 431/1998; indici FOI ISTAT base 2015=100.
-    Precisione: ESATTO (indici ISTAT ufficiali).
+    Vigenza: L. 392/1978 art. 32 — L. 431/1998; indici FOI ISTAT (base 2015=100 raccordata;
+    dal 2026 base 2025=100, coefficiente di raccordo ufficiale 1,214).
+    Precisione: ESATTO — per periodi di 12/24 mesi che terminano dal gennaio 2026 in poi usa la
+    variazione UFFICIALE del comunicato ISTAT in GU ex art. 81 L. 392/1978 (citata in lettera);
+    per gli altri periodi a cavallo del ribasamento la variazione è calcolata sulla serie
+    raccordata e può differire fino a ±0,1 p.p. dagli arrotondamenti ufficiali (v. campo `nota`).
 
     Args:
         locatore: Nome e cognome completo del locatore (mittente della lettera)
@@ -559,15 +764,35 @@ def lettera_adeguamento_canone(
     if dt_adeguamento <= dt_stipula:
         return {"errore": "data_adeguamento deve essere successiva a data_stipula"}
 
-    foi_stipula = _get_foi(dt_stipula.year, dt_stipula.month)
-    foi_adeguamento = _get_foi(dt_adeguamento.year, dt_adeguamento.month)
+    sostituzioni: list = []
+    foi_stipula = _foi_tracciato(sostituzioni, dt_stipula.year, dt_stipula.month)
+    foi_adeguamento = _foi_tracciato(
+        sostituzioni, dt_adeguamento.year, dt_adeguamento.month
+    )
 
     if foi_stipula is None or foi_adeguamento is None:
         return {"errore": "Indici FOI non disponibili per le date richieste"}
 
-    variazione_piena_pct = ((foi_adeguamento - foi_stipula) / foi_stipula) * 100
+    variazione = _variazione_foi(dt_stipula, dt_adeguamento)
+    if variazione is None:
+        return {"errore": "Indici FOI non disponibili per le date richieste"}
+
+    variazione_piena_pct = variazione["pct"]
     variazione_applicata_pct = variazione_piena_pct * (percentuale_istat / 100)
     canone_nuovo = canone_attuale * (1 + variazione_applicata_pct / 100)
+    avvertenza = _formatta_avvertenza(sostituzioni)
+    if avvertenza and "ufficiale" in variazione["metodo"]:
+        avvertenza += (
+            " La variazione applicata resta quella ufficiale ex art. 81 L. 392/1978."
+        )
+    fonte_riga = (
+        f"- Fonte variazione: {variazione['fonte']}\n" if variazione["fonte"] else ""
+    )
+    nota_ufficiale_riga = (
+        f"- Nota: {_NOTA_ARROTONDAMENTO_UFFICIALE}\n"
+        if "ufficiale" in variazione["metodo"]
+        else ""
+    )
 
     lettera = (
         f"Egr. Sig./Sig.ra {conduttore}\n\n"
@@ -583,6 +808,8 @@ def lettera_adeguamento_canone(
         f"- Indice FOI alla stipula ({data_stipula}): {foi_stipula}\n"
         f"- Indice FOI all'adeguamento ({data_adeguamento}): {foi_adeguamento}\n"
         f"- Variazione ISTAT piena: {variazione_piena_pct:.2f}%\n"
+        f"{fonte_riga}"
+        f"{nota_ufficiale_riga}"
         f"- Percentuale applicata: {percentuale_istat}%\n"
         f"- Variazione applicata: {variazione_applicata_pct:.2f}%\n\n"
         f"NUOVO CANONE MENSILE: € {canone_nuovo:.2f}\n"
@@ -592,12 +819,19 @@ def lettera_adeguamento_canone(
         f"Distinti saluti,\n"
         f"{locatore}"
     )
+    if avvertenza:
+        # A letter based on a not-yet-published index must say so in the draft.
+        lettera += f"\n\n[{avvertenza}]"
 
     return {
         "lettera": lettera,
         "canone_attuale": canone_attuale,
         "canone_nuovo": round(canone_nuovo, 2),
         "variazione_piena_pct": round(variazione_piena_pct, 2),
+        "metodo_variazione": variazione["metodo"],
+        "fonte_variazione": variazione["fonte"],
+        "nota": variazione["nota"],
+        "avvertenza": avvertenza,
         "variazione_applicata_pct": round(variazione_applicata_pct, 2),
         "aumento_mensile": round(canone_nuovo - canone_attuale, 2),
         "riferimento_normativo": "L. 392/1978, art. 32 — L. 431/1998",
@@ -605,6 +839,7 @@ def lettera_adeguamento_canone(
 
 
 @mcp.tool(tags={"rivalutazione"})
+@sourced("indici_foi")
 def calcolo_devalutazione(
     importo_attuale: float,
     data_attuale: str,
@@ -613,7 +848,8 @@ def calcolo_devalutazione(
     """Calcolo inverso della rivalutazione: riconduce un importo attuale al suo valore in una data passata.
 
     Utile per confronti storici di valore (es. "quanto valeva in euro 1990 questa somma di oggi?").
-    Vigenza: Indici FOI ISTAT base 2015=100, disponibili dal 1947 al mese più recente.
+    Vigenza: Indici FOI ISTAT base 2015=100 raccordata (dal 2026 conversione dalla base
+    2025=100 con coefficiente ufficiale 1,214), disponibili dal 1990 al mese più recente.
     Precisione: ESATTO (indici ISTAT ufficiali).
 
     Args:
@@ -627,8 +863,9 @@ def calcolo_devalutazione(
     if dt_passata >= dt_attuale:
         return {"errore": "data_passata deve essere anteriore a data_attuale"}
 
-    foi_attuale = _get_foi(dt_attuale.year, dt_attuale.month)
-    foi_passata = _get_foi(dt_passata.year, dt_passata.month)
+    sostituzioni: list = []
+    foi_attuale = _foi_tracciato(sostituzioni, dt_attuale.year, dt_attuale.month)
+    foi_passata = _foi_tracciato(sostituzioni, dt_passata.year, dt_passata.month)
 
     if foi_attuale is None or foi_passata is None:
         return {"errore": "Indici FOI non disponibili per le date richieste"}
@@ -645,11 +882,13 @@ def calcolo_devalutazione(
         "coefficiente_devalutazione": round(coefficiente, 6),
         "importo_in_data_passata": round(importo_passato, 2),
         "perdita_potere_acquisto_pct": round((1 - coefficiente) * 100, 2),
+        "avvertenza": _formatta_avvertenza(sostituzioni),
         "esempio": f"€ {importo_attuale:.2f} del {data_attuale} equivalevano a € {importo_passato:.2f} del {data_passata}",
     }
 
 
 @mcp.tool(tags={"rivalutazione"})
+@sourced("indici_foi")
 def rivalutazione_storica(
     importo: float,
     anno_partenza: int,
@@ -659,7 +898,8 @@ def rivalutazione_storica(
 
     Usa la media annuale degli indici FOI per ciascun anno. Utile quando non si conosce
     il mese esatto dell'obbligazione. Per precisione mensile usare rivalutazione_monetaria.
-    Vigenza: Indici FOI ISTAT base 2015=100, disponibili dal 1947.
+    Vigenza: Indici FOI ISTAT base 2015=100 raccordata (dal 2026 conversione dalla base
+    2025=100 con coefficiente ufficiale 1,214), disponibili dal 1990.
     Precisione: ESATTO (media annua indici ISTAT ufficiali); meno preciso di rivalutazione_monetaria se si conosce il mese.
 
     Args:
@@ -682,6 +922,13 @@ def rivalutazione_storica(
 
     if media_partenza is None or media_arrivo is None:
         return {"errore": "Indici FOI non disponibili per gli anni richiesti"}
+
+    avvertenza = _componi_avvertenza([
+        f"media dell'anno {anno} parziale sui primi "
+        f"{len(_INDICI_FOI[str(anno)])} mesi pubblicati"
+        for anno in (anno_partenza, anno_arrivo)
+        if str(anno) in _INDICI_FOI and len(_INDICI_FOI[str(anno)]) < 12
+    ])
 
     coefficiente = media_arrivo / media_partenza
     importo_rivalutato = importo * coefficiente
@@ -708,11 +955,13 @@ def rivalutazione_storica(
         "coefficiente_rivalutazione": round(coefficiente, 6),
         "importo_rivalutato": round(importo_rivalutato, 2),
         "differenza": round(importo_rivalutato - importo, 2),
+        "avvertenza": avvertenza,
         "dettaglio_anni": dettaglio,
     }
 
 
 @mcp.tool(tags={"rivalutazione"})
+@sourced("indici_foi")
 def variazioni_istat(
     anno_inizio: int,
     anno_fine: int,
@@ -720,11 +969,17 @@ def variazioni_istat(
     """Restituisce la tabella delle variazioni percentuali annuali degli indici FOI ISTAT per un periodo.
 
     Utile per consulenze, analisi storiche dell'inflazione e relazioni peritali.
-    Vigenza: Indici FOI ISTAT base 2015=100, disponibili dal 1947 al mese più recente.
-    Precisione: ESATTO (medie annue indici ISTAT ufficiali).
+    Vigenza: Indici FOI ISTAT base 2015=100 raccordata (dal 2026 base 2025=100, coefficiente
+    di raccordo ufficiale 1,214), disponibili dal 1990 al mese più recente.
+    Precisione: ESATTO (medie annue indici ISTAT ufficiali). L'anno in corso ha una media
+    PARZIALE sui soli mesi pubblicati (campi `mesi_disponibili` e `nota` nella riga):
+    non confrontabile con le medie annue complete. La variazione media annua ufficiale
+    dell'anno di ribasamento (2026) sarà definitiva solo a serie annuale completa; se
+    l'ultimo anno è parziale anche la variazione cumulata è provvisoria (campo
+    `variazione_cumulata_parziale: true`).
 
     Args:
-        anno_inizio: Anno iniziale del periodo (es. 2000; range disponibile: 1947 a oggi)
+        anno_inizio: Anno iniziale del periodo (es. 2000; range disponibile: 1990 a oggi)
         anno_fine: Anno finale del periodo (es. 2024)
     """
     if anno_fine <= anno_inizio:
@@ -745,22 +1000,24 @@ def variazioni_istat(
         if media is None:
             continue
 
-        if anno == anno_inizio:
-            tabella.append({
-                "anno": anno,
-                "media_foi": round(media, 2),
-                "variazione_pct": None,
-            })
-        else:
+        riga = {
+            "anno": anno,
+            "media_foi": round(media, 2),
+            "variazione_pct": None,
+        }
+        if anno != anno_inizio:
             if media_prec and media_prec > 0:
-                variazione = ((media - media_prec) / media_prec) * 100
+                riga["variazione_pct"] = round(((media - media_prec) / media_prec) * 100, 2)
             else:
-                variazione = 0.0
-            tabella.append({
-                "anno": anno,
-                "media_foi": round(media, 2),
-                "variazione_pct": round(variazione, 2),
-            })
+                riga["variazione_pct"] = 0.0
+        mesi_disponibili = len(_INDICI_FOI[str(anno)])
+        if mesi_disponibili < 12:
+            riga["mesi_disponibili"] = mesi_disponibili
+            riga["nota"] = (
+                f"Media parziale sui primi {mesi_disponibili} mesi pubblicati: "
+                "non confrontabile con le medie annue complete."
+            )
+        tabella.append(riga)
         media_prec = media
 
     # Cumulative variation
@@ -770,16 +1027,20 @@ def variazioni_istat(
     if prima_media and ultima_media:
         variazione_cumulata = round(((ultima_media - prima_media) / prima_media) * 100, 2)
 
-    return {
+    risultato = {
         "anno_inizio": anno_inizio,
         "anno_fine": anno_fine,
         "variazione_cumulata_pct": variazione_cumulata,
         "base_indici": "2015=100",
         "tabella": tabella,
     }
+    if variazione_cumulata is not None and len(_INDICI_FOI.get(str(anno_fine), {})) < 12:
+        risultato["variazione_cumulata_parziale"] = True
+    return risultato
 
 
 @mcp.tool(tags={"rivalutazione"})
+@sourced("indici_foi")
 def rivalutazione_annuale_media(
     importo: float,
     data_inizio: str,
@@ -789,7 +1050,8 @@ def rivalutazione_annuale_media(
 
     Alternativa a rivalutazione_monetaria quando non si conosce il mese esatto dell'obbligazione.
     Per calcoli dove il mese è noto, preferire rivalutazione_monetaria.
-    Vigenza: Indici FOI ISTAT base 2015=100, disponibili dal 1947.
+    Vigenza: Indici FOI ISTAT base 2015=100 raccordata (dal 2026 conversione dalla base
+    2025=100 con coefficiente ufficiale 1,214), disponibili dal 1990.
     Precisione: ESATTO su base annua (media annua indici ISTAT ufficiali).
 
     Args:
@@ -816,6 +1078,13 @@ def rivalutazione_annuale_media(
     if media_inizio is None or media_fine is None:
         return {"errore": "Indici FOI non disponibili per gli anni richiesti"}
 
+    avvertenza = _componi_avvertenza([
+        f"media dell'anno {anno} parziale sui primi "
+        f"{len(_INDICI_FOI[str(anno)])} mesi pubblicati"
+        for anno in (dt_inizio.year, dt_fine.year)
+        if str(anno) in _INDICI_FOI and len(_INDICI_FOI[str(anno)]) < 12
+    ])
+
     coefficiente = media_fine / media_inizio
     importo_rivalutato = importo * coefficiente
 
@@ -828,11 +1097,13 @@ def rivalutazione_annuale_media(
         "coefficiente_rivalutazione": round(coefficiente, 6),
         "importo_rivalutato": round(importo_rivalutato, 2),
         "differenza": round(importo_rivalutato - importo, 2),
+        "avvertenza": avvertenza,
         "nota": "Calcolo basato su media annua FOI (non mese specifico)",
     }
 
 
 @mcp.tool(tags={"rivalutazione"})
+@sourced("indici_foi")
 def inflazione_titoli_stato(
     capitale_investito: float,
     rendimento_lordo_annuo_pct: float,
@@ -843,7 +1114,8 @@ def inflazione_titoli_stato(
 
     Calcola il rendimento reale (equazione di Fisher) e verifica se l'investimento
     ha preservato il potere d'acquisto rispetto all'inflazione ISTAT del periodo.
-    Vigenza: Indici FOI ISTAT base 2015=100, disponibili dal 1947 al mese più recente.
+    Vigenza: Indici FOI ISTAT base 2015=100 raccordata (dal 2026 conversione dalla base
+    2025=100 con coefficiente ufficiale 1,214), disponibili dal 1990 al mese più recente.
     Precisione: ESATTO per indici FOI; INDICATIVO per rendimento reale (usa inflazione media annua FOI).
 
     Args:
@@ -861,8 +1133,9 @@ def inflazione_titoli_stato(
     if dt_fine <= dt_inizio:
         return {"errore": "data_fine deve essere successiva a data_inizio"}
 
-    foi_inizio = _get_foi(dt_inizio.year, dt_inizio.month)
-    foi_fine = _get_foi(dt_fine.year, dt_fine.month)
+    sostituzioni: list = []
+    foi_inizio = _foi_tracciato(sostituzioni, dt_inizio.year, dt_inizio.month)
+    foi_fine = _foi_tracciato(sostituzioni, dt_fine.year, dt_fine.month)
 
     if foi_inizio is None or foi_fine is None:
         return {"errore": "Indici FOI non disponibili per le date richieste"}
@@ -894,5 +1167,6 @@ def inflazione_titoli_stato(
         "montante_reale": round(montante_reale, 2),
         "rendimento_reale_totale": round(rendimento_reale_totale, 2),
         "potere_acquisto_preservato": rendimento_reale_annuo > 0,
+        "avvertenza": _formatta_avvertenza(sostituzioni),
         "nota": "Rendimento reale calcolato con equazione di Fisher",
     }

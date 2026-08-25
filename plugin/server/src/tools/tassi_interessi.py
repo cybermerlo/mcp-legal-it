@@ -7,6 +7,10 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from src.server import mcp
+from src.lib._data import sourced
+
+# Shared FOI index access (single load, same fallback and warning semantics).
+from src.tools import rivalutazioni_istat as _rivalutazioni
 
 _DATA = Path(__file__).resolve().parent.parent / "data"
 
@@ -122,6 +126,7 @@ def _days_in_year(year: int) -> int:
 
 
 @mcp.tool(tags={"interessi"})
+@sourced("tassi_legali")
 def interessi_legali(
     capitale: float,
     data_inizio: str,
@@ -208,6 +213,7 @@ def interessi_legali(
 
 
 @mcp.tool(tags={"interessi"})
+@sourced("tassi_mora")
 def interessi_mora(
     capitale: float,
     data_inizio: str,
@@ -399,6 +405,7 @@ def calcolo_ammortamento(
 
 
 @mcp.tool(tags={"interessi"})
+@sourced("tegm")
 def verifica_usura(
     tasso_applicato: float,
     tipo_operazione: str = "mutuo_prima_casa",
@@ -473,6 +480,7 @@ def verifica_usura(
 
 
 @mcp.tool(tags={"interessi"})
+@sourced("tassi_legali")
 def interessi_acconti(
     capitale: float,
     data_inizio: str,
@@ -553,6 +561,7 @@ def interessi_acconti(
 
 
 @mcp.tool(tags={"interessi"})
+@sourced("tassi_legali")
 def calcolo_maggior_danno(
     capitale: float,
     data_inizio: str,
@@ -563,8 +572,11 @@ def calcolo_maggior_danno(
     Confronta rivalutazione ISTAT (indici FOI) e interessi legali, applicando il criterio
     del maggiore tra i due (Cass. SU 19499/2008). Se la rivalutazione supera gli interessi,
     il creditore ha diritto al maggior danno pari alla differenza.
-    Vigenza: Art. 1224 co. 2 c.c. — Cass. SU 19499/2008; indici FOI ISTAT.
-    Precisione: ESATTO per tassi legali storici e indici FOI ufficiali.
+    Vigenza: Art. 1224 co. 2 c.c. — Cass. SU 19499/2008; indici FOI ISTAT base 2015=100
+    raccordata (dal 2026 base 2025=100, coefficiente ufficiale 1,214), serie dal 1990.
+    Precisione: ESATTO per tassi legali storici e indici FOI ufficiali; INDICATIVO se un
+    mese richiesto non è ancora pubblicato — approssimato col più vicino disponibile e
+    segnalato nel campo `avvertenza`.
 
     Args:
         capitale: Importo del credito originario in euro (€)
@@ -577,25 +589,12 @@ def calcolo_maggior_danno(
     if dt_fine <= dt_inizio:
         return {"errore": "data_fine deve essere successiva a data_inizio"}
 
-    # Load FOI data for rivalutazione
-    _foi_data_path = _DATA / "indici_foi.json"
-    with open(_foi_data_path) as f:
-        indici_foi = json.load(f)["indici"]
-
-    def _get_foi_local(year: int, month: int) -> float | None:
-        y_str = str(year)
-        m_str = f"{month:02d}"
-        if y_str in indici_foi and m_str in indici_foi[y_str]:
-            return indici_foi[y_str][m_str]
-        if y_str in indici_foi:
-            months = indici_foi[y_str]
-            closest = min(months.keys(), key=lambda m: abs(int(m) - month))
-            return months[closest]
-        return None
-
-    # 1. Rivalutazione ISTAT
-    foi_inizio = _get_foi_local(dt_inizio.year, dt_inizio.month)
-    foi_fine = _get_foi_local(dt_fine.year, dt_fine.month)
+    # 1. Rivalutazione ISTAT (shared FOI series from rivalutazioni_istat)
+    sostituzioni: list = []
+    foi_inizio = _rivalutazioni._foi_tracciato(
+        sostituzioni, dt_inizio.year, dt_inizio.month
+    )
+    foi_fine = _rivalutazioni._foi_tracciato(sostituzioni, dt_fine.year, dt_fine.month)
 
     if foi_inizio is None or foi_fine is None:
         return {"errore": "Indici FOI non disponibili per le date richieste"}
@@ -623,11 +622,13 @@ def calcolo_maggior_danno(
         "criterio_applicato": criterio_applicato,
         "importo_spettante": round(importo_spettante, 2),
         "totale_dovuto": round(capitale + importo_spettante, 2),
+        "avvertenza": _rivalutazioni._formatta_avvertenza(sostituzioni),
         "riferimento_normativo": "Art. 1224, co. 2 c.c. — Cass. SU 19499/2008",
     }
 
 
 @mcp.tool(tags={"interessi"})
+@sourced("tassi_mora")
 def interessi_corso_causa(
     capitale: float,
     data_citazione: str,

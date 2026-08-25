@@ -1,4 +1,10 @@
 {
+  "_vintage": {
+    "aggiornato_al": "2026-08-14",
+    "fonte": "DM 10 marzo 2014 n. 55, testo vigente (DM 37/2018 e DM 147/2022) — Gazzetta Ufficiale via Normattiva",
+    "verifica": "manuale",
+    "nota": "18 tabelle trascritte dal testo ufficiale e riscontrate da scripts/verifica-parametri-forensi.py (269 valori). NON verificabili dalla Gazzetta, perche' Normattiva li rende come immagine: gli scaglioni oltre 520.000 euro e alcune colonne della tabella penale, che restano dalla fonte secondaria e sono marcati _scaglioni_non_verificabili."
+  },
   "_description": "Parametri compensi forensi — DM 55/2014 aggiornato DM 147/2022 (in vigore dal 23/10/2022)",
   "_source": "Scraped da avvocatoandreani.it/servizi/tabelle-parametri-forensi.php il 2026-02-19",
   "_note": "Valori medio con variazione -50%/+50% per min/max (Art. 4, comma 1, DM 55/2014). Civile = Giudizi di cognizione innanzi al tribunale (competenza 110).",

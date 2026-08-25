@@ -287,3 +287,55 @@ nel campo `avvisi` quando il calcolo ci finisce dentro.
 
 Tabelle non ancora trascritte: Corte dei conti (11), Corte costituzionale e corti europee (14),
 accertamento del passivo (20-bis), TAR (21), Consiglio di Stato (22), tributarie (23 e 24).
+
+## 7. Allineamento all'upstream v2.12.1 (2026-08-25)
+
+Merge di 34 commit dell'upstream (100 file, ~6.000 righe). **Nessuna delle correzioni dei
+§ 5 e § 6 e' stata fatta a monte**: il fork resta avanti sulla correttezza giuridica e
+recupera l'infrastruttura.
+
+### Cosa arriva dall'upstream, e perche' conviene
+
+- **`_vintage`: ogni tabella dichiara provenienza e scadenza**, e i tool la stampano in coda
+  alla risposta. E' il rimedio strutturale al problema che ci ha portati fin qui: un numero
+  senza l'eta' della sua fonte non lascia al lettore modo di accorgersi che e' invecchiato.
+  Dove manca una data, la tabella dice `da_verificare` invece di inventarla.
+- **`fix(rivalutazioni-istat)`: ribasamento 2025=100 e fine del riempimento silenzioso dei
+  buchi** — 420 righe. Riguarda `rivalutazione_monetaria`, che e' fra i tool attivi: e' il
+  motivo per cui questo merge non poteva aspettare.
+- `fix(giustizia-amm)`: ricerca TAR/CdS ripristinata dopo la riorganizzazione del portale, e
+  verifica TLS riattivata.
+- `feat(resolver)`: `cite_law` risolve atti per nome, trattati UE e altre forme di citazione.
+- `feat(security)`: allowlist di egress dichiarata come codice.
+
+### Conflitti e come sono stati sciolti
+
+Solo due, entrambi dove upstream e fork scrivevano sulle stesse righe:
+
+- **`tabella_milano_roma.json`** — l'upstream aggiungeva il suo `_vintage` alla *sua* tabella
+  a forbici. Tenuta la **nostra** tabella a punti (§ 5.4), con un `_vintage` che dichiara le
+  fonti vere: Milano ed. 28/06/2022 e Roma ed. 2025.
+- **`rivalutazioni_istat.py`** — entrambe le versioni aggiungevano campi allo stesso
+  dizionario. Tenute **tutte e due**: la loro `avvertenza` sulle sostituzioni di indice e le
+  nostre `base_media_per_interessi` e `avvertenza_interessi` (§ 5.5).
+
+### Due allineamenti che il merge automatico non poteva fare
+
+I blocchi `_vintage` di `tabella_danno_bio.json` e `parametri_forensi.json` sono arrivati
+descrivendo i dati **dell'upstream**: DM 2025 per le micropermanenti (noi siamo al DM 2026) e
+«trascritti da avvocatoandreani.it, non dalla Gazzetta Ufficiale» per i parametri forensi
+(le nostre 18 tabelle vengono invece dalla Gazzetta, con riscontro automatico su 269 valori).
+Lasciarli avrebbe fatto stampare ai tool una provenienza falsa — cioe' esattamente il difetto
+che quella funzione esiste per prevenire. Riscritti sui dati reali.
+
+### Una conseguenza del pin a FastMCP 2.x
+
+`tests/unit/test_data_vintage.py` chiamava il tool direttamente: funziona con FastMCP 3, non
+con la 2.x, dove il decoratore restituisce un `FunctionTool`. Adattato come fa il resto della
+suite (`getattr(tool, "fn", tool)`). E' il primo attrito visibile del pin: quando si passera'
+alla 3.x andra' riscritto il filtro per tag, non solo tolto il vincolo.
+
+**Esito**: 2.998 test verdi, zero fallimenti nuovi (restano i 24 preesistenti in moduli non
+toccati). I numeri delle correzioni sono invariati dopo il merge — micro 9% a 40 anni
+17.391,78 €, esempio ufficiale Milano n. 1 249.010,00 €, decreto ingiuntivo 567,00 € — e i
+tool ora stampano la provenienza corretta delle nostre tabelle.
