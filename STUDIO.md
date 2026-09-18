@@ -60,6 +60,10 @@ di `run_server.py`. Fa le stesse cose, più:
   `lavoro`, `parcelle_avv`, `parcelle_prof`, `utility`, `proprieta`, `atti`,
   `privacy`, `fiscale`, `investimenti`, `societario`, `crisi_impresa`.
 
+- **Trasporto senza stato** e **`malloc_trim` dopo ogni tool** — contro la
+  memoria che cresceva finche' il container non veniva ucciso (§ 8).
+  `MCP_STATELESS=0` riporta alle sessioni senza toccare il codice.
+
 ## 3. `Dockerfile` — `curl`, `LEGAL_TAGS`, entrypoint
 
 - installa **`curl`**: l'healthcheck di Coolify lo esegue *dentro* il container e
@@ -339,3 +343,88 @@ alla 3.x andra' riscritto il filtro per tag, non solo tolto il vincolo.
 toccati). I numeri delle correzioni sono invariati dopo il merge — micro 9% a 40 anni
 17.391,78 €, esempio ufficiale Milano n. 1 249.010,00 €, decreto ingiuntivo 567,00 € — e i
 tool ora stampano la provenienza corretta delle nostre tabelle.
+
+## 8. Memoria che cresceva: sessioni mai chiuse e picchi della Consulta (2026-09-18)
+
+**Il sintomo.** Dopo 12 giorni di uptime il processo era a **470 MB** di memoria anonima,
+il container aveva toccato il limite di 512 MB **4.222 volte** ed era vicino all'OOM.
+Dopo un redeploy sullo stesso commit ripartiva da ~98 MB. In media ~30 MB al giorno.
+
+Riprodotto su un container di prova con la stessa immagine: le cause sono **due**,
+indipendenti, e la media dei 30 MB al giorno le mescolava.
+
+### 8.1 Le sessioni MCP non venivano mai chiuse (la crescita lineare)
+
+Ogni connessione di Claude apre una sessione MCP nuova: `initialize`, `tools/list`,
+`prompts/list`, `resources/list`, e poi eventualmente i tool. **Non la chiude mai**: nei
+log non compare nessuna `DELETE /mcp`. FastMCP 2.x crea il gestore delle sessioni
+dell'SDK **senza** `session_idle_timeout` (l'SDK lo supporta, FastMCP 2.x non lo
+passa), quindi ogni sessione restava in memoria per sempre.
+
+Quanto pesa ciascuna: il "router" dei messaggi della sessione resta sospeso in attesa
+del messaggio successivo, che non arriva mai, e la sua variabile di ciclo tiene in vita
+**l'ultimo messaggio inviato**. Misurato:
+
+| Ultimo messaggio della sessione | Memoria trattenuta per sempre |
+|---|---:|
+| `resources/list` (la sequenza reale di Claude) | 62 KB |
+| `tools/list` (schema dei 58 tool) | 266 KB |
+| `leggi_sentenza` (testo integrale) | 432 KB |
+
+Controprova: 200 sessioni come quelle della seconda riga, ma chiuse con `DELETE`,
+lasciano 6 KB ciascuna.
+
+**La correzione**: `stateless_http=True` in `serve_studio.py`. Ogni richiesta ha il suo
+trasporto, che muore con lei. Nessun tool usa funzioni di sessione (campionamento,
+elicitation, notifiche di progresso, sottoscrizioni: verificato con `grep`), quindi non
+si perde nulla. 300 connessioni in fila: **+62 KB ciascuna prima, 0 dopo**.
+
+Effetti visibili dal client, tutti conformi alla specifica: le risposte non portano
+piu' l'intestazione `mcp-session-id`; un ID di sessione vecchio (quelli che Claude
+ricorda dopo un deploy) viene ignorato invece di dare 404; `DELETE` risponde 405.
+`MCP_STATELESS=0` (variabile d'ambiente della risorsa Coolify + redeploy) torna alle
+sessioni senza toccare il codice.
+
+### 8.2 I picchi della Corte costituzionale restavano "prenotati" (lo scalino)
+
+La prima ricerca alla Consulta dopo un deploy (e di nuovo a cache scaduta, dopo 7
+giorni) scarica l'archivio 2001-oggi: **56 MB** di ZIP, **~218 MB** di JSON, che
+`_unzip_decade` decodificava **tutti insieme** anche per cercare in un solo anno.
+Picco: **358 MB** di oggetti vivi. Finita la chiamata gli oggetti vivi tornano a
+**200 KB**, ma il processo resta a **~400 MB**: glibc tiene per se' la memoria liberata
+e non la rende al sistema. Le massime (`pronunce_cost_su_norma`) fanno lo stesso con
+~111 MB di JSON (processo a ~248 MB).
+
+Due correzioni:
+
+- **`malloc_trim(0)` dopo ogni tool** (`serve_studio.py`, middleware
+  `_RestituisciMemoria`): rende al sistema la memoria libera. Costa ~1 ms, 20 ms su
+  un heap frammentato da 300 MB. Fuori da glibc non fa nulla.
+- **Un anno alla volta** (`lib/corte_cost/client.py`, `_iter_decade`): ogni anno va in
+  cache appena decodificato e in memoria resta solo quello richiesto. Picco di oggetti
+  vivi **da 358 a 110 MB**. `_unzip_decade` resta com'era per i test. File di cache e
+  risposte dei tool **identici byte per byte** a prima (verificato su 26 anni di
+  pronunce, una ricerca e una ricerca per norma).
+
+| Misura (container di prova) | Prima | Dopo |
+|---|---:|---:|
+| Processo dopo la 1a ricerca alla Consulta | 402 MB | 92 MB |
+| Processo dopo le massime | 248 MB | 96 MB |
+| Picco di oggetti vivi durante il download | 358 MB | 110 MB |
+| 300 connessioni di Claude in fila | +18 MB | 0 |
+
+Test: 2.724 verdi; i 43 che falliscono falliscono identici anche su `main` senza le
+modifiche (generazione di documenti in una cartella non scrivibile dall'utente di prova).
+
+### 8.3 Come accorgersene la prossima volta
+
+La memoria anonima del container ora deve restare **piatta attorno ai 100 MB**, con
+salite solo *durante* le chiamate pesanti. Misura (sul server):
+
+```bash
+C=$(docker ps -q --filter name=gqrssuwseu2ilbzuy0fgindj)
+grep ^anon /sys/fs/cgroup/system.slice/docker-$(docker inspect -f '{{.Id}}' $C).scope/memory.stat
+```
+
+Se torna a crescere, la prima cosa da guardare e' il pin di FastMCP (§ 1): la 3.x ha
+un altro gestore delle sessioni e `stateless_http` va ricontrollato.

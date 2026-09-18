@@ -37,6 +37,7 @@ import os
 import re
 import time
 import zipfile
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -207,7 +208,22 @@ def _unzip_decade(
     JSON is latin-1 encoded. Returns a mapping of year -> list of records
     (extracted from the JSON root_key).
     """
-    out: dict[int, list[dict]] = {}
+    return dict(_iter_decade(bundle_bytes, year_zip_tmpl, year_json_tmpl, root_key))
+
+
+def _iter_decade(
+    bundle_bytes: bytes,
+    year_zip_tmpl: str,
+    year_json_tmpl: str,
+    root_key: str,
+) -> Iterator[tuple[int, list[dict]]]:
+    """[fork] Come _unzip_decade, ma restituisce (anno, record) un anno alla volta.
+
+    L'archivio delle pronunce 2001-oggi contiene ~218 MB di JSON: tenerli in
+    memoria tutti insieme portava il processo a ~358 MB di oggetti vivi, e glibc non
+    restituisce al sistema quella memoria dopo averla liberata. Un anno alla
+    volta il picco scende a ~110 MB: l'archivio compresso piu' un anno.
+    """
     # Anchor the year on the known token (e.g. "Pronunce_2024" / "Massime_2024")
     # derived from year_zip_tmpl, so an incidental 4-digit run earlier in the
     # entry name can't misfile records under a bogus year.
@@ -231,8 +247,7 @@ def _unzip_decade(
         raw = inner.read(target).decode("latin-1")
         obj = json.loads(raw)
         records = obj.get(root_key, []) if isinstance(obj, dict) else obj
-        out[year] = records if isinstance(records, list) else []
-    return out
+        yield year, records if isinstance(records, list) else []
 
 
 async def _load_year(
@@ -261,17 +276,21 @@ async def _load_year(
         return []
 
     bundle_bytes = await _download(f"{base_url}/{bundle}")
-    by_year = _unzip_decade(bundle_bytes, year_zip_tmpl, year_json_tmpl, root_key)
-    for yr, records in by_year.items():
+    # [fork] Ogni anno va in cache appena decodificato; in memoria resta solo
+    # quello richiesto (vedi _iter_decade e STUDIO.md, § 8).
+    wanted: list[dict] | None = None
+    for yr, records in _iter_decade(bundle_bytes, year_zip_tmpl, year_json_tmpl, root_key):
         _write_cache(_cache_path(kind, yr), records)
+        if yr == year:
+            wanted = records
 
-    if year not in by_year:
+    if wanted is None:
         # Cache the negative result so a year absent from the decade bundle
         # (post-2015 massime, future years, upstream omissions) doesn't trigger
         # a full decade re-download on every subsequent call.
         _write_cache(_cache_path(kind, year), [])
 
-    return by_year.get(year, [])
+    return wanted or []
 
 
 async def load_pronunce_year(year: int) -> list[PronunciaCost]:
