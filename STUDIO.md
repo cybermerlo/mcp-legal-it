@@ -1,19 +1,16 @@
 # Fork dello Studio — cosa cambia rispetto a `capazme/mcp-legal-it`
 
 Questo fork esiste per far girare il server come **servizio remoto su Coolify**
-(connettore MCP per Claude), non come plugin locale. Le differenze sono tre e
-sono tutte qui sotto: tenerle poche e circoscritte serve a poter fare
-`git merge upstream/main` senza soffrire.
+(connettore MCP per Claude), non come plugin locale. Dal 2026-10-18 contiene
+**solo la giurisprudenza di Cassazione** (Italgiure): il resto è stato tolto e
+andrà in un progetto separato (§ 9 e `SPLIT.md`).
 
-Sincronizzare con l'upstream:
-
-```bash
-git remote add upstream https://github.com/capazme/mcp-legal-it.git   # una volta sola
-git fetch upstream && git merge upstream/main
-```
-
-I conflitti possibili sono solo in `pyproject.toml` e `Dockerfile`. Dopo un
-merge, **ricontrollare per prima cosa il punto 1**.
+Sincronizzare con l'upstream: l'upstream ha **riscritto la sua storia git**
+(gli hash non coincidono più e non c'è un antenato comune), e questo fork ha
+comunque perso quasi tutti i file dell'upstream. `git merge upstream/main` non
+serve più: si confrontano e si portano a mano i soli file tenuti (elenco e
+procedura al § 9.3). Dopo ogni allineamento **ricontrollare per prima cosa il
+punto 1**.
 
 ---
 
@@ -68,7 +65,7 @@ di `run_server.py`. Fa le stesse cose, più:
 
 - installa **`curl`**: l'healthcheck di Coolify lo esegue *dentro* il container e
   `python:3.12-slim` non ha né curl né wget → *unhealthy* → rollback del deploy;
-- imposta `LEGAL_TAGS` col preset in uso (sovrascrivibile da Coolify senza rebuild);
+- imposta `LEGAL_TAGS` vuota: tutti gli 8 tool (sovrascrivibile da Coolify senza rebuild);
 - verifica il pin di FastMCP (punto 1);
 - lancia `serve_studio.py` invece di `run_server.py`.
 
@@ -78,15 +75,9 @@ di `run_server.py`. Fa le stesse cose, più:
 
 - Risorsa di tipo **application**, build pack **dockerfile**, che builda da
   questa repo: `git push` → deploy automatico.
-- Perché il preset non finisca murato nell'immagine, `LEGAL_TAGS` è impostata
-  **anche** come variabile d'ambiente della risorsa: quella vince sull'`ENV` del
-  Dockerfile, quindi cambiare selezione = cambiare la variabile e rideployare,
-  senza rebuild e senza toccare il codice.
-- ⚠️ I tool che generano documenti (`genera_modello_atto`, `esporta_atto_docx`,
-  `genera_procura_liti_docx`, …) scrivono il file in `/tmp/mcp-legal-it`
-  **dentro il container** e restituiscono un path del filesystem: da remoto quel
-  file è irraggiungibile. Servirebbe un endpoint di download. Per questo il tag
-  `atti` è fuori dal preset.
+- `LEGAL_TAGS` è impostata **anche** come variabile d'ambiente della risorsa, col
+  vecchio preset dello studio. Contiene `giurisprudenza`, quindi espone comunque
+  tutti gli 8 tool (verificato con `/healthz`): si può lasciare o togliere.
 
 ## 4. Testo integrale delle sentenze dal PDF ufficiale (Italgiure)
 
@@ -125,224 +116,18 @@ completo. Il PDF e' pubblico e senza credenziali come il resto di SentenzeWeb.
 188.630 provvedimenti, penale 236.093). Prima del 2021 non c'e' nulla, e non ci
 sono ne' le massime del CED ne' la giurisprudenza di merito.
 
-## 5. Risarcimento danni — correzioni sostanziali (2026-08-14)
+## 5-7. Danni, compensi forensi, allineamento v2.12.1 — spostati
 
-I tool `danni` dell'upstream restituivano importi **plausibili e piu' bassi del dovuto**, con
-sotto la citazione dell'articolo di legge: il modo peggiore di sbagliare. Quattro correzioni.
+Le correzioni dei §§ 5-6 (risarcimento danni, tabelle del DM 55/2014) e il
+resoconto del merge della v2.12.1 (§ 7) riguardano tool che non sono più in
+questo server. Il testo integrale resta nella versione precedente di questo file:
 
-### 5.1 Micropermanenti: la formula era sbagliata
-
-L'upstream **sommava** il valore dei singoli punti (1%+2%+...+N%). L'art. 139 c. 6 CdA assegna
-invece **un solo coefficiente al grado complessivo** di invalidita':
-
-```
-danno permanente = punto_base x coefficiente(N) x N punti x (1 - 0,005 x (eta - 10))
+```bash
+git show 64f288d:STUDIO.md
 ```
 
-Effetto della correzione (valori DM 2026):
-
-| Caso | Prima | Dopo |
-|---|---:|---:|
-| 2% a 35 anni | 1.770,25 € | 1.902,77 € |
-| 6% a 40 anni | 6.387,34 € | 8.569,86 € |
-| 9% a 40 anni | 11.546,35 € | 17.391,78 € |
-
-Sul 9% erano **5.845 € in meno**, su una tabella *di legge* (vincolante per RCA e, tramite la
-Gelli-Bianco, per la responsabilita' sanitaria).
-
-### 5.2 Valori fermi al DM 2025
-
-Aggiornati al **DM 20 luglio 2026** (GU n. 173 del 28/07/2026): primo punto **988,45 €**,
-inabilita' assoluta **57,64 €**/giorno. Le parziali sono ricavate per percentuale, come vuole
-l'art. 139 c. 1 lett. b), invece di essere costanti separate.
-
-### 5.3 Macropermanenti: tetto di legge e avvertenza
-
-- La personalizzazione era ammessa **fino al 50%**; l'art. 138 c. 3 dice **fino al 30%**.
-- Il riferimento stampato in calce («Tabella unica nazionale DM 2024») era sbagliato: l'art. 138
-  c. 1 richiede un **DPR**, e l'art. 1 c. 18 L. 124/2017 ne lega l'applicabilita' ai sinistri
-  successivi alla sua entrata in vigore.
-- I valori restano **medi indicativi** con coefficienti per eta' a scaglioni decennali: non
-  riproducono ne' la TUN ne' Milano. Ora il risultato lo **dichiara** in un campo `avvertenza`.
-
-### 5.4 Danno parentale: dalle forbici inventate al sistema a punti
-
-L'upstream usava forbici min-max, e la «tabella di Roma» era **sintetizzata** scalando Milano
-(lo diceva il file stesso: *«Nessuna tabella ufficiale Roma 2024 pubblicata»*). Sostituite con
-le tabelle reali:
-
-- **Milano** — Osservatorio giustizia civile, tabelle integrate a punti ed. 28/06/2022, in
-  attuazione di **Cass. 10579/2021** (che impone il sistema a punti: le forbici non sono piu'
-  un criterio conforme). Due tabelle: genitore/figlio/coniuge (valore punto 3.365,00 €, cap
-  336.500,00 €) e fratello/nipote (1.461,20 €, cap 146.120,00 €). Parametri A-E.
-- **Roma** — Tribunale di Roma ed. 2025, valore punto 11.549,20 €, punti per grado di parentela,
-  eta' della vittima, eta' del congiunto, convivenza.
-
-**Validazione**: l'implementazione riproduce **13 su 13** degli esempi di calcolo ufficiali
-dell'Allegato 1 del PDF di Milano. Il quattordicesimo (esempio 5, ipotesi media) e' un **refuso
-della fonte**: dichiara 285.025,00 € ma i suoi stessi 85 punti x 3.365,00 fanno 286.025,00 €, e
-gli altri due valori dello stesso esempio tornano. Prevale l'aritmetica.
-
-Due scelte di trasparenza: i correttivi discrezionali di Roma (riduzioni e aumenti frazionari)
-**non** sono applicati d'ufficio ma elencati nella risposta; e la fascia 71-80 dell'eta' del
-congiunto nella tabella di Roma vale 2,5 punti mentre nella scala della vittima vale 1,5 — pare
-un refuso della fonte, ma e' riprodotto **com'e' stampato**, con avviso: correggerlo d'ufficio
-significherebbe liquidare su una tabella che non esiste.
-
-### 5.5 Le avvertenze di Cassazione spostate dentro i tool
-
-I due prompt `analisi_sinistro` e `quantificazione_danni` contenevano avvertenze che valgono
-piu' della procedura in cui erano scritte. Ma **i prompt spariscono appena si usa un filtro per
-tag**: `include_tags` di FastMCP filtra tutti i componenti, e prompt e risorse non hanno tag,
-quindi qualsiasi selezione li azzera (verificato: 23 prompt e 15 risorse senza filtro, 0 con).
-Le avvertenze sono quindi state spostate dove viaggiano col tool.
-
-- **`interessi_legali`** — Cass. SS.UU. 1712/1995: sui debiti di valore gli interessi
-  compensativi NON si calcolano sul capitale interamente rivalutato (sovra-compensazione), ma
-  sulla somma progressivamente rivalutata o sul valore medio. L'errore da evitare e' la BASE,
-  non il tasso. Per i debiti di valuta non si applica.
-- **`rivalutazione_monetaria`** — stessa avvertenza, piu' un campo nuovo nel risultato:
-  **`base_media_per_interessi`**, che calcola la base corretta cosi' non c'e' da farlo a mano.
-- **`danno_non_patrimoniale`** — Cass. SS.UU. 26972/2008 (San Martino) nella docstring, e
-  rimando all'avvertenza sugli interessi nel risultato.
-
-### 5.6 Unitarieta' del danno non patrimoniale — correzione sostanziale
-
-`danno_non_patrimoniale` calcolava danno morale ed esistenziale come **poste autonome sommate**
-al biologico, fino a +100% complessivo — mentre citava in calce, come proprio fondamento, la
-sentenza che quel cumulo lo vieta. Ora le due percentuali confluiscono in **una** personalizzazione,
-limitata al tetto dell'articolo applicabile (20% micro art. 139 c. 3, 30% macro art. 138 c. 3),
-e il risultato dichiara quanto e' stato chiesto, quanto applicato e se e' stato ridotto.
-
-La stessa funzione conteneva inoltre una **seconda copia della formula sbagliata** delle
-micropermanenti, rimasta indietro rispetto alla correzione del punto 5.1. Ora esiste un unico
-helper `_biologico_permanente()`: due copie della stessa regola sono due occasioni di sbagliare.
-
-## 6. Compensi forensi — la tabella giusta invece di una sola (2026-08-14)
-
-### 6.1 Cosa era gia' corretto
-
-Verificato contro il testo vigente del DM 55/2014 su Normattiva (GU n. 77 del 02/04/2014,
-come modificato dal DM 37/2018 e dal DM 147/2022):
-
-- tab. 2 (tribunale, cognizione): **6 scaglioni su 6 esatti**;
-- tab. 25 (stragiudiziale): **6 su 6**;
-- tab. 7 (volontaria giurisdizione): totali esatti (il tool ripartisce il compenso unico
-  50/50 fra studio e trattazione: e' una sua convenzione, ma la somma torna);
-- tab. 15 penale, colonna giudice di pace: **4 fasi su 4**;
-- `nota_spese`: compensi + 15% spese generali (art. 2 c. 2) → CPA 4% → IVA 22%, con le
-  spese vive fuori dall'imponibile. Catena corretta;
-- min/max a ∓50%: **corretto**. Il DM 147/2022 ha ridotto al 50% il tetto di aumento che
-  prima era dell'80% e ha soppresso il periodo sulla fase istruttoria.
-
-### 6.2 Il problema: 26 tabelle nel decreto, una sola nel tool
-
-`parcella_avvocato_civile` applicava **sempre la tab. 2** (tribunale), qualunque fosse il
-procedimento, senza dichiararlo. Su una causa da 10.000 € a compensi medi:
-
-| Affare | Tabella | Importo | Il tool dava |
-|---|---|---:|---:|
-| Decreto ingiuntivo | 8 — voce **unica** | 567 € | 5.077 € (**+795%**) |
-| Esecuzione presso terzi | 17 | 1.403 € | +262% |
-| Giudice di pace | 1 | 2.090 € | +143% |
-| Sfratto per morosita' | 5 | 2.584 € | +96% |
-| Mediazione/negoziazione | 25-bis | 3.043 € | +67% |
-| Cassazione | 13 | 3.082 € | +65% |
-| Cautelare | 10 | 3.503 € | +45% |
-| Lavoro | 3 | 5.388 € | −6% |
-| Appello | 12 | 5.809 € | −13% |
-
-Il caso peggiore era anche il piu' frequente: il monitorio ha **una sola voce** che copre
-studio, istruttoria e fase conclusiva, e la docstring del tool indirizzava proprio li'
-(«spesso chiamato... dopo `decreto_ingiuntivo()`»). Qui l'errore va **in eccesso**: una
-parcella gonfiata di otto volte non supera la liquidazione.
-
-### 6.3 Cosa e' stato fatto
-
-- **18 tabelle** trascritte dal testo ufficiale: giudice di pace (1), tribunale (2), lavoro (3),
-  previdenza (4), locatizia (5), precetto (6), volontaria giurisdizione (7), monitorio (8),
-  istruzione preventiva (9), cautelare (10), appello (12), cassazione (13), esecuzioni
-  mobiliari (16), presso terzi (17), immobiliari (18), fallimento (20), stragiudiziale (25),
-  mediazione e negoziazione assistita (25-bis), arbitrato (26).
-- **Parametro `tabella`** in `parcella_avvocato_civile`, e il risultato **dichiara sempre**
-  quale tabella ha applicato. Le fasi disponibili seguono la tabella: chiedere l'istruttoria
-  su un monitorio ora e' un errore esplicito, non un addendo silenzioso.
-- **Variazioni dell'art. 4** come parametri opzionali, con la catena dei passaggi in chiaro:
-  +30% atti telematici navigabili (c. 1-bis), +30% per assistito oltre il primo fino a dieci
-  e +10% oltre (c. 2), +20% entrambi i coniugi (c. 3), −30% posizioni non distinte (c. 4),
-  conciliazione = fase decisionale +1/4 (c. 6), +50% sulla decisionale in cassazione con
-  memoria ex art. 378 c.p.c. (c. 10-quater).
-- **Il decreto contiene UN valore per fase**: il minimo e il massimo non stanno in tabella,
-  si ricavano applicando l'art. 4 c. 1. Il JSON conserva quindi solo i valori ufficiali e il
-  codice calcola ∓50%: prima min e max erano memorizzati come dati, dando l'impressione che
-  fossero tabellari.
-
-### 6.4 Provenienza verificabile
-
-Il testo ufficiale delle tabelle e' in `docs/dm55-2014-tabelle-ufficiali.txt` e
-`scripts/verifica-parametri-forensi.py` controlla che **ogni** valore del JSON compaia in
-quel testo, nella tabella e nell'ordine giusti: **269 valori riscontrati**. Una cifra
-sbagliata in una parcella non si vede a occhio, quindi non ci si affida alla rilettura.
-
-⚠️ Restano fuori dal riscontro gli scaglioni oltre € 520.000 e alcune colonne della tabella
-penale: Normattiva rende quella parte come immagine. Quei valori provengono dalla fonte
-secondaria originaria, sono marcati `_scaglioni_non_verificabili` e il tool lo **dice**
-nel campo `avvisi` quando il calcolo ci finisce dentro.
-
-Tabelle non ancora trascritte: Corte dei conti (11), Corte costituzionale e corti europee (14),
-accertamento del passivo (20-bis), TAR (21), Consiglio di Stato (22), tributarie (23 e 24).
-
-## 7. Allineamento all'upstream v2.12.1 (2026-08-25)
-
-Merge di 34 commit dell'upstream (100 file, ~6.000 righe). **Nessuna delle correzioni dei
-§ 5 e § 6 e' stata fatta a monte**: il fork resta avanti sulla correttezza giuridica e
-recupera l'infrastruttura.
-
-### Cosa arriva dall'upstream, e perche' conviene
-
-- **`_vintage`: ogni tabella dichiara provenienza e scadenza**, e i tool la stampano in coda
-  alla risposta. E' il rimedio strutturale al problema che ci ha portati fin qui: un numero
-  senza l'eta' della sua fonte non lascia al lettore modo di accorgersi che e' invecchiato.
-  Dove manca una data, la tabella dice `da_verificare` invece di inventarla.
-- **`fix(rivalutazioni-istat)`: ribasamento 2025=100 e fine del riempimento silenzioso dei
-  buchi** — 420 righe. Riguarda `rivalutazione_monetaria`, che e' fra i tool attivi: e' il
-  motivo per cui questo merge non poteva aspettare.
-- `fix(giustizia-amm)`: ricerca TAR/CdS ripristinata dopo la riorganizzazione del portale, e
-  verifica TLS riattivata.
-- `feat(resolver)`: `cite_law` risolve atti per nome, trattati UE e altre forme di citazione.
-- `feat(security)`: allowlist di egress dichiarata come codice.
-
-### Conflitti e come sono stati sciolti
-
-Solo due, entrambi dove upstream e fork scrivevano sulle stesse righe:
-
-- **`tabella_milano_roma.json`** — l'upstream aggiungeva il suo `_vintage` alla *sua* tabella
-  a forbici. Tenuta la **nostra** tabella a punti (§ 5.4), con un `_vintage` che dichiara le
-  fonti vere: Milano ed. 28/06/2022 e Roma ed. 2025.
-- **`rivalutazioni_istat.py`** — entrambe le versioni aggiungevano campi allo stesso
-  dizionario. Tenute **tutte e due**: la loro `avvertenza` sulle sostituzioni di indice e le
-  nostre `base_media_per_interessi` e `avvertenza_interessi` (§ 5.5).
-
-### Due allineamenti che il merge automatico non poteva fare
-
-I blocchi `_vintage` di `tabella_danno_bio.json` e `parametri_forensi.json` sono arrivati
-descrivendo i dati **dell'upstream**: DM 2025 per le micropermanenti (noi siamo al DM 2026) e
-«trascritti da avvocatoandreani.it, non dalla Gazzetta Ufficiale» per i parametri forensi
-(le nostre 18 tabelle vengono invece dalla Gazzetta, con riscontro automatico su 269 valori).
-Lasciarli avrebbe fatto stampare ai tool una provenienza falsa — cioe' esattamente il difetto
-che quella funzione esiste per prevenire. Riscritti sui dati reali.
-
-### Una conseguenza del pin a FastMCP 2.x
-
-`tests/unit/test_data_vintage.py` chiamava il tool direttamente: funziona con FastMCP 3, non
-con la 2.x, dove il decoratore restituisce un `FunctionTool`. Adattato come fa il resto della
-suite (`getattr(tool, "fn", tool)`). E' il primo attrito visibile del pin: quando si passera'
-alla 3.x andra' riscritto il filtro per tag, non solo tolto il vincolo.
-
-**Esito**: 2.998 test verdi, zero fallimenti nuovi (restano i 24 preesistenti in moduli non
-toccati). I numeri delle correzioni sono invariati dopo il merge — micro 9% a 40 anni
-17.391,78 €, esempio ufficiale Milano n. 1 249.010,00 €, decreto ingiuntivo 567,00 € — e i
-tool ora stampano la provenienza corretta delle nostre tabelle.
+ed è il punto di partenza obbligato per il progetto parallelo: sono correzioni
+che l'upstream **non ha** (vedi `SPLIT.md`).
 
 ## 8. Memoria che cresceva: sessioni mai chiuse e picchi della Consulta (2026-09-18)
 
@@ -387,6 +172,9 @@ sessioni senza toccare il codice.
 
 ### 8.2 I picchi della Corte costituzionale restavano "prenotati" (lo scalino)
 
+*(Storico: la Corte costituzionale non è più in questo server. Resta valido il
+`malloc_trim` dopo ogni tool, descritto qui.)*
+
 La prima ricerca alla Consulta dopo un deploy (e di nuovo a cache scaduta, dopo 7
 giorni) scarica l'archivio 2001-oggi: **56 MB** di ZIP, **~218 MB** di JSON, che
 `_unzip_decade` decodificava **tutti insieme** anche per cercare in un solo anno.
@@ -428,3 +216,87 @@ grep ^anon /sys/fs/cgroup/system.slice/docker-$(docker inspect -f '{{.Id}}' $C).
 
 Se torna a crescere, la prima cosa da guardare e' il pin di FastMCP (§ 1): la 3.x ha
 un altro gestore delle sessioni e `stateless_http` va ricontrollato.
+
+## 9. Split: solo Cassazione, e allineamento all'upstream v2.16.0 (2026-10-18)
+
+### 9.1 Cosa resta
+
+Il server è stato ridotto agli **8 tool di Italgiure** (`cerca_giurisprudenza`,
+`leggi_sentenza`, `giurisprudenza_su_norma`, `giurisprudenza_articolo`,
+`ultime_pronunce`) e di orientamento costruiti su Italgiure
+(`orientamento_su_norma`, `orientamento_su_principio`, `mappa_orientamento`),
+con 2 prompt e 1 risorsa. Le librerie rimaste sono quelle da cui dipendono:
+`lib/italgiure`, `lib/brocardi` (massime → numeri di sentenza) e, di `lib/visualex`,
+solo `map.py` e `models.py` (il resolver dei nomi degli atti, che serve a capire che
+`art. 13 GDPR` è il regolamento 2016/679). Tutto il resto — 210 tool, 21 prompt,
+14 risorse, il plugin con skill, comandi, agenti e hook — è elencato in `SPLIT.md`
+ed è recuperabile da `main` prima dello split (commit `64f288d`).
+
+### 9.2 Cosa arriva dall'upstream (v2.12.1 → v2.16.0)
+
+Portati nei file tenuti, perché correggono errori che davano risposte sbagliate
+senza dirlo:
+
+- **Sezioni**: `sezione="SU"` e `sezione="T"` non esistono nell'indice (le Sezioni
+  Unite sono `U`, la tributaria è la sezione 5 civile) e davano **zero risultati in
+  silenzio**. Ora `resolve_sezione()` traduce gli alias e rifiuta i codici sconosciuti.
+- **Materia** con più parole: `materia:responsabilita' civile` legava al campo solo la
+  prima parola e la ricerca si **allargava** invece di restringersi. Ora è una frase.
+- **Finestra dell'archivio**: non è "dal 2020" ma una finestra mobile di circa cinque
+  anni (dal 2021). Le decisioni anteriori sono dichiarate fuori archivio invece di
+  risultare "non trovate".
+- **Omonimi**: con `archivio="tutti"` lo stesso numero/anno può essere una decisione
+  civile e una penale; `leggi_sentenza` restituisce la prima e segnala l'altra.
+- **Lettura a pagine** (`da_carattere`) e taglio "inizio + fine" oltre 30.000
+  caratteri, così la parte finale (P.Q.M., principio di diritto) non si perde.
+- **Ricerca per norma**: l'articolo deve stare vicino all'atto (`art. 13` entro poche
+  parole da `2016/679`), invece di contare ogni `art. 13` della decisione.
+- **Orientamento**: i segnali di contrasto/conformità contano decisioni distinte (non
+  la somma per espressione); `discostarsi` non è più un segnale di contrasto (compare
+  quasi sempre in "non vi sono ragioni per discostarsi", che dichiara conformità);
+  la ricerca per principio ordina per pertinenza.
+- **Brocardi**: l'atto è riconosciuto per identità (tipo, anno, numero) e non per
+  sottostringa dell'etichetta: prima l'art. 18 dello Statuto dei lavoratori
+  restituiva le massime della legge fallimentare. La data dell'atto arriva fino alla
+  ricerca, così D.Lgs. 81/2008 e D.Lgs. 81/2015 non si confondono.
+- **Cache su disco disattivabile** (`LEGAL_CACHE=off`).
+
+### 9.3 Il punto delicato: il PDF ufficiale e la lettura a pagine
+
+L'upstream **non ha** la correzione del § 4: continua a leggere il campo `ocr`
+dell'indice, troncato alla fonte. Le due modifiche toccavano la stessa funzione
+(`format_full_text`) e sono state fuse a mano:
+
+- `format_full_text(doc, pdf_text=None, da_carattere=1)`: il testo servito è il PDF
+  quando c'è (e non è più corto dell'indice), altrimenti l'indice; inizio + fine e
+  finestre di `da_carattere` si calcolano **su quel testo**;
+- `_leggi_sentenza_impl` scarica il PDF **anche nelle pagine successive alla prima**:
+  altrimenti `da_carattere` indicherebbe posizioni del PDF applicate all'indice;
+- con un formatter diverso dal testo integrale (es. il riepilogo usato da
+  `giurisprudenza_articolo`) il PDF non viene scaricato.
+
+I test in `TestFormatFullTextPdf` (`tests/unit/test_italgiure.py`) fissano questi tre
+comportamenti. Esito: 440 test verdi, 32 live esclusi. I test live non sono stati
+eseguiti: Italgiure non era raggiungibile dall'ambiente in cui è stato fatto lo split.
+**Da fare dopo il deploy**: `leggi_sentenza(29253, 2024, archivio="civile")` deve
+dichiarare "PDF ufficiale" e contenere il principio di diritto per intero.
+
+Per i prossimi allineamenti, i file da confrontare con l'upstream sono:
+
+```
+plugin/server/src/tools/italgiure.py        (contiene modifiche [fork])
+plugin/server/src/lib/italgiure/client.py   (contiene modifiche [fork])
+plugin/server/src/tools/orientamento.py
+plugin/server/src/lib/brocardi/
+plugin/server/src/lib/visualex/map.py, models.py
+plugin/server/src/lib/_http.py, _paging.py, _cache.py, _sources.py, _result.py
+tests/unit/test_italgiure*.py, test_orientamento*.py, test_brocardi*.py, test_paging.py
+```
+
+con una fusione a tre vie per i due file `[fork]` (base = la versione upstream da cui
+si era partiti, oggi la v2.16.0):
+
+```bash
+git fetch upstream
+git merge-file <file-nostro> <copia-upstream-v2.16.0> <copia-upstream-nuova>
+```

@@ -1,8 +1,7 @@
-# Standalone MCP Legal IT
-# For full server setup with SAPG, use ~/server-infra/docker-compose.yml
+# MCP Giurisprudenza Cassazione (Italgiure)
 
 services:
-  mcp-legal-it:
+  mcp-giurisprudenza:
     build: .
     ports:
       - "8000:8000"

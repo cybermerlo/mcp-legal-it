@@ -9,10 +9,10 @@ plugin/server/run_server.py, piu' quello che serve al deploy su Coolify:
     healthcheck, ne' quello di Coolify ne' il monitor su Telegram;
 
   - la variabile d'ambiente ``LEGAL_TAGS``, che permette di scegliere
-    liberamente quali gruppi di tool esporre. L'upstream ha solo i profili
-    fissi di ``LEGAL_PROFILE`` e nessuno corrisponde a cio' che serve allo
-    studio. Con 218 tool lo schema pesa ~260 KB (~66k token) che il client
-    si carica a OGNI connessione, anche senza usarli;
+    liberamente quali gruppi di tool esporre. Serviva quando il server ne
+    aveva 218; da quando contiene solo la giurisprudenza di Cassazione (8 tool,
+    tutti col tag "giurisprudenza") non seleziona piu' nulla, ma resta per
+    compatibilita' con la variabile impostata su Coolify;
 
   - due misure contro la crescita della memoria di un servizio che resta
     acceso per settimane: trasporto HTTP senza stato e restituzione al
@@ -45,10 +45,10 @@ if _tags:
 # --- memoria liberata restituita al sistema ---------------------------------
 # glibc tiene per se' la memoria che il programma libera e la riusa, ma non la
 # rende al sistema: il processo resta grosso quanto il suo picco piu' alto.
-# E i picchi qui sono grossi e rari: la prima ricerca alla Corte costituzionale
-# dopo un deploy scarica e decodifica l'archivio 2001-oggi, e prima della
-# correzione di corte_cost lasciava il processo a ~400 MB con 200 KB di oggetti
-# vivi. malloc_trim(0) dopo ogni tool lo riporta a ~95 MB e costa da 1 a 20 ms.
+# Il caso che l'ha reso necessario (la Corte costituzionale, che scaricava
+# l'archivio 2001-oggi e lasciava il processo a ~400 MB) non e' piu' in questo
+# server, ma il testo integrale delle sentenze passa comunque da PDF di
+# centinaia di KB. malloc_trim(0) dopo ogni tool costa da 1 a 20 ms.
 # Fuori da glibc (macOS, musl) non fa nulla.
 def _carica_malloc_trim():
     try:
@@ -79,7 +79,7 @@ async def healthz(request: Request) -> JSONResponse:
     try:
         # get_tools() restituisce il registro COMPLETO: include_tags viene
         # applicato piu' a valle, in fase di tools/list. Qui rifacciamo il conto
-        # a mano, altrimenti la sonda direbbe sempre 218 e non servirebbe a
+        # a mano, altrimenti la sonda direbbe sempre il totale e non servirebbe a
         # verificare che il filtro abbia fatto presa.
         tools = await mcp.get_tools()
         payload["tool"] = (

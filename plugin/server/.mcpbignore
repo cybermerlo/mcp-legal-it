@@ -1,5 +1,0 @@
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-run_server.py

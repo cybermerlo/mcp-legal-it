@@ -14,8 +14,8 @@ Extracts from each article page:
 - Articoli correlati (precedente/successivo)
 """
 
+import copy
 import json
-import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,6 +24,8 @@ from urllib.parse import urljoin
 import httpx
 from bs4 import BeautifulSoup, Tag
 
+from .._cache import cache_enabled, cache_root
+from .._http import note_source
 from ..visualex.map import find_brocardi_url
 
 BASE_URL = "https://www.brocardi.it"
@@ -35,24 +37,31 @@ _HEADERS = {
 }
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 
-# Persistent JSON cache for article URLs
-_CACHE_DIR = Path(os.environ.get("MCP_CACHE_DIR", Path.home() / ".cache" / "mcp-legal-it"))
-_CACHE_FILE = _CACHE_DIR / "brocardi_urls.json"
+# Persistent JSON cache for article URLs. `LEGAL_CACHE=off` keeps it in memory
+# only (see lib/_cache.py) -- the directory is then never read or created.
+def _cache_file() -> Path:
+    return cache_root() / "brocardi_urls.json"
 
 
 def _load_url_cache() -> dict[str, str]:
+    if not cache_enabled():
+        return {}
     try:
-        if _CACHE_FILE.exists():
-            return json.loads(_CACHE_FILE.read_text())
+        path = _cache_file()
+        if path.exists():
+            return json.loads(path.read_text())
     except (json.JSONDecodeError, OSError):
         pass
     return {}
 
 
 def _save_url_cache(cache: dict[str, str]) -> None:
+    if not cache_enabled():
+        return
     try:
-        _CACHE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
-        _CACHE_FILE.write_text(json.dumps(cache, ensure_ascii=False))
+        path = _cache_file()
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        path.write_text(json.dumps(cache, ensure_ascii=False))
     except OSError:
         pass
 
@@ -121,6 +130,7 @@ class BrocardiResult:
 
     url: str = ""
     position: str = ""
+    rubrica: str = ""
     dispositivo: str = ""
     brocardi: list[str] = field(default_factory=list)
     ratio: str = ""
@@ -148,6 +158,9 @@ class BrocardiResult:
 
         if self.position:
             parts.append(f"**Posizione**: {self.position}\n")
+
+        if self.rubrica:
+            parts.append(f"**Rubrica**: {self.rubrica}\n")
 
         if self.dispositivo:
             parts.append(f"## Testo dell'articolo\n{self.dispositivo}\n")
@@ -198,6 +211,7 @@ async def fetch_brocardi(
     tipo_atto: str,
     articolo: str,
     numero_atto: str = "",
+    data: str = "",
 ) -> BrocardiResult:
     """Fetch full Brocardi annotations for an article.
 
@@ -205,8 +219,9 @@ async def fetch_brocardi(
         tipo_atto: Normalized act type (e.g. "codice civile", "codice penale")
         articolo: Article number (e.g. "2043", "13", "640-bis")
         numero_atto: Act number for disambiguation (e.g. "196", "231")
+        data: Act date or year — D.lgs. 81/2008 and 81/2015 differ only by it
     """
-    base_url = find_brocardi_url(tipo_atto, numero_atto)
+    base_url = find_brocardi_url(tipo_atto, numero_atto, data)
     if not base_url:
         return BrocardiResult(error=f"Nessun mapping Brocardi per '{tipo_atto}'")
 
@@ -227,6 +242,7 @@ async def fetch_brocardi(
         try:
             resp = await client.get(article_url)
             resp.raise_for_status()
+            note_source("brocardi", str(resp.url) if hasattr(resp, "url") else "")
         except httpx.HTTPStatusError as exc:
             # Self-healing cache: a stale/poisoned entry can point at a 404 URL.
             # Drop it and re-resolve once from scratch before giving up.
@@ -243,6 +259,7 @@ async def fetch_brocardi(
                     )
                 resp = await client.get(article_url)
                 resp.raise_for_status()
+                note_source("brocardi", str(resp.url) if hasattr(resp, "url") else "")
             else:
                 raise
         soup = BeautifulSoup(resp.text, "lxml")
@@ -268,6 +285,7 @@ async def find_article_url(
 
     resp = await client.get(base_url)
     resp.raise_for_status()
+    note_source("brocardi", str(resp.url) if hasattr(resp, "url") else "")
 
     # Word-boundary pattern: match artNNN.html but not artNNNx.html
     pattern = re.compile(
@@ -299,6 +317,7 @@ async def find_article_url(
         try:
             sub_resp = await client.get(sub_url)
             sub_resp.raise_for_status()
+            note_source("brocardi", str(sub_resp.url) if hasattr(sub_resp, "url") else "")
             sub_page_url = str(sub_resp.url) if hasattr(sub_resp, "url") else sub_url
             if not sub_page_url.endswith("/"):
                 sub_page_url += "/"
@@ -364,6 +383,7 @@ def _extract_all_sections(soup: BeautifulSoup, result: BrocardiResult) -> None:
         if not corpo:
             return
 
+    _extract_rubrica(soup, result)
     _extract_dispositivo(soup, result)
     _extract_brocardi_adagi(corpo, result)
     _extract_ratio(corpo, result)
@@ -376,20 +396,57 @@ def _extract_all_sections(soup: BeautifulSoup, result: BrocardiResult) -> None:
     _extract_related_articles(soup, result)
 
 
+def _text_without_note_refs(node: Tag) -> str:
+    """Text of a node without the footnote calls "(1)", "(2)" ... of Brocardi.
+
+    The calls are ``<sup><a class="nota-ref">``; they are dropped from a COPY of the node
+    (the footnote extractor still needs them in the page), and the notes themselves are
+    reported in the "Note" section.
+    """
+    clone = copy.copy(node)
+    for sup in clone.find_all("sup"):
+        if sup.find("a", class_="nota-ref"):
+            sup.decompose()
+    return _clean_text(clone.get_text())
+
+
+def _extract_rubrica(soup: BeautifulSoup, result: BrocardiResult) -> None:
+    """Extract the heading (rubrica) of the article, e.g. "Risarcimento per fatto illecito".
+
+    On the article page it is the ``<h3 class="hbox-content">`` under the title block (the
+    ``<h2 class="hbox-header">`` next to the h1 holds the act's estremi, not the rubrica).
+    """
+    for h3 in soup.find_all("h3", class_="hbox-content"):
+        text = _clean_text(h3.get_text())
+        if text:
+            result.rubrica = text
+            return
+
+
 def _extract_dispositivo(soup: BeautifulSoup, result: BrocardiResult) -> None:
-    """Extract the article text from the #dispositivo tab section."""
-    # The dispositivo is in a div targeted by the #dispositivo anchor
-    disp = soup.find("div", id="dispositivo")
-    if disp:
-        text = _clean_text(disp.get_text())
+    """Extract the article text (the "Dispositivo" tab of the page).
+
+    Brocardi marks the block ``<div class="corpoDelTesto dispositivo">`` with no id (the
+    ``#dispositivo`` anchor is an ``<a name>``); the id lookup is kept as a fallback for the
+    older markup.
+    """
+    disp = soup.select_one("div.corpoDelTesto.dispositivo") or soup.find("div", class_="dispositivo")
+    if disp is not None:
+        text = _text_without_note_refs(disp)
         if text:
             result.dispositivo = text
             return
-    # Fallback: look for the corpoDelTesto inside the dispositivo area
+    # Older markup: a div with id="dispositivo", or a corpoDelTesto inside one.
+    disp = soup.find("div", id="dispositivo")
+    if disp:
+        text = _text_without_note_refs(disp)
+        if text:
+            result.dispositivo = text
+            return
     for div in soup.find_all("div", class_="corpoDelTesto"):
         parent = div.find_parent("div", id="dispositivo")
         if parent:
-            result.dispositivo = _clean_text(div.get_text())
+            result.dispositivo = _text_without_note_refs(div)
             return
 
 

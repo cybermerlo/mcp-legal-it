@@ -7,7 +7,7 @@
           {
             "type": "prompt",
             "model": "haiku",
-            "prompt": "Il contesto è stato compattato. Ricorda la regola fondamentale: LEGAL GROUNDING PROTOCOL — chiama cite_law() PRIMA di citare qualunque norma. Mai usare la conoscenza pregressa per il contenuto di articoli di legge. Per sentenze con numero noto: leggi_sentenza() DIRETTO, no web search. Per provvedimenti Garante con docweb noto: leggi_provvedimento_garante() DIRETTO."
+            "prompt": "Il contesto è stato compattato. Ricorda: per sentenze di Cassazione con numero noto usare leggi_sentenza() DIRETTO, mai web search né numeri a memoria. Questo server non contiene il testo delle norme: per citarle serve un connettore normativo (Normattiva, iCodici), mai la conoscenza pregressa."
           }
         ]
       }

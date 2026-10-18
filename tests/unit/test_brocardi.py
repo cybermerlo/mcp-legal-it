@@ -1,4 +1,4 @@
-"""Tests for the standalone Brocardi scraper and cerca_brocardi tool."""
+"""Tests for the standalone Brocardi scraper."""
 
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
@@ -22,7 +22,6 @@ from src.lib.brocardi.client import (
     find_article_url,
     fetch_brocardi,
 )
-from src.tools.legal_citations import _cerca_brocardi_impl
 
 
 # ---------------------------------------------------------------------------
@@ -536,49 +535,6 @@ class TestFetchBrocardi:
 
 
 # ---------------------------------------------------------------------------
-# cerca_brocardi tool (mocked HTTP)
-# ---------------------------------------------------------------------------
-
-class TestCercaBrocardiImpl:
-    @pytest.mark.asyncio
-    async def test_no_article(self):
-        result = await _cerca_brocardi_impl("GDPR")
-        assert "Errore" in result
-        assert "articolo" in result.lower()
-
-    @pytest.mark.asyncio
-    async def test_unknown_act(self):
-        result = await _cerca_brocardi_impl("art. 1 LeggeFantasia12345")
-        assert "Errore" in result
-        assert "non riconosciuto" in result
-
-    @pytest.mark.asyncio
-    async def test_success_with_cassazione_refs(self):
-        index_html = '<a href="/codice-civile/art2043.html">Art. 2043</a>'
-
-        from src.lib.brocardi.client import _url_cache
-        _url_cache.clear()
-
-        with patch("src.lib.brocardi.client.httpx.AsyncClient") as MockClient:
-            MockClient.return_value = _mock_httpx_brocardi(index_html, _BROCARDI_HTML)
-
-            result = await _cerca_brocardi_impl("art. 2043 c.c.")
-
-            assert "Ratio Legis" in result
-            assert "Spiegazione" in result
-            assert "Neminem laedere" in result
-            assert "Riferimenti Cassazione" in result
-            assert "leggi_sentenza" in result
-            assert "100/2024" in result
-            assert "200/2023" in result
-
-    @pytest.mark.asyncio
-    async def test_empty_reference(self):
-        result = await _cerca_brocardi_impl("")
-        assert "Errore" in result
-
-
-# ---------------------------------------------------------------------------
 # Live tests (optional)
 # ---------------------------------------------------------------------------
 
@@ -593,8 +549,3 @@ class TestBrocardiLive:
         # Should have at least some content
         assert result.ratio or result.spiegazione or result.massime
 
-    @pytest.mark.asyncio
-    async def test_cerca_brocardi_art_2043(self):
-        result = await _cerca_brocardi_impl("art. 2043 c.c.")
-        assert "Errore" not in result
-        assert "brocardi.it" in result.lower()

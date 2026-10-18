@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir .
 # [fork] Il pin di FastMCP e' in pyproject.toml ed e' la patch piu' importante:
 # qui verifichiamo che abbia fatto presa, perche' con FastMCP 3.x il filtro dei
 # tool viene ignorato IN SILENZIO (vedi STUDIO.md). Meglio un build che fallisce
-# di un server che espone 218 tool senza dirlo.
+# di un server che ignora il filtro senza dirlo.
 RUN python -c "import fastmcp,sys; v=fastmcp.__version__; print('FastMCP',v); sys.exit(0 if v.startswith('2.') else 1)"
 
 # Replicate plugin/server structure expected by run_server.py
@@ -32,11 +32,10 @@ ENV MCP_PORT=8000
 ENV MCP_PATH=/mcp
 EXPOSE 8000
 
-# [fork] Preset B — studio civile + penale (115 tool). Sovrascrivibile dalla
-# variabile d'ambiente omonima impostata su Coolify: per cambiare selezione si
-# tocca QUELLA (pannello -> Environment Variables -> Redeploy), non questo file.
-# Valore vuoto = tutti i tool.
-ENV LEGAL_TAGS="giurisprudenza,costituzionale,giudiziario,scadenze,interessi,rivalutazione,danni,credito,sinistro,parcelle_avv,penale,utility"
+# [fork] Tutti i tool del server hanno il tag "giurisprudenza": il filtro per
+# tag non seleziona piu' nulla. Vuoto = tutti i tool (8). Una LEGAL_TAGS impostata
+# su Coolify che contenga "giurisprudenza" da' lo stesso risultato.
+ENV LEGAL_TAGS=""
 
 # Cache and temp directories
 RUN mkdir -p /app/.cache/mcp-legal-it /tmp/mcp-legal-it
