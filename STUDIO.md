@@ -230,7 +230,7 @@ con 2 prompt e 1 risorsa. Le librerie rimaste sono quelle da cui dipendono:
 solo `map.py` e `models.py` (il resolver dei nomi degli atti, che serve a capire che
 `art. 13 GDPR` è il regolamento 2016/679). Tutto il resto — 210 tool, 21 prompt,
 14 risorse, il plugin con skill, comandi, agenti e hook — è elencato in `SPLIT.md`
-ed è recuperabile da `main` prima dello split (commit `64f288d`).
+ed è recuperabile dal commit `64f288d`, il genitore dello split nella storia di `main`.
 
 ### 9.2 Cosa arriva dall'upstream (v2.12.1 → v2.16.0)
 

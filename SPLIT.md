@@ -4,13 +4,13 @@ Questo repository è stato ridotto alla sola giurisprudenza della Corte di Cassa
 (Italgiure): 8 tool, 2 prompt, 1 risorsa. Qui sotto c'è l'inventario completo di ciò che
 è stato rimosso, pensato come base per il **progetto parallelo** che raccoglierà il resto.
 
-Niente è andato perso. Lo stato completo, prima dello split, è nel branch `main` e nel
-commit **`64f288d`** ("Memoria che cresceva: sessioni mai chiuse e picchi della Consulta"):
+Niente è andato perso. Lo stato completo, prima dello split, è il commit **`64f288d`** (genitore del
+commit di split, quindi sempre raggiungibile dalla storia di `main`), "Memoria che cresceva: sessioni mai chiuse e picchi della Consulta":
 
 ```bash
 # nuovo progetto parallelo partendo dallo stato completo del fork
 git clone https://github.com/cybermerlo/mcp-legal-it mcp-legal-it-strumenti
-cd mcp-legal-it-strumenti && git checkout -b main 64f288d
+cd mcp-legal-it-strumenti && git switch -c strumenti 64f288d
 ```
 
 ---
