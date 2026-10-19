@@ -9,7 +9,7 @@ commit di split, quindi sempre raggiungibile dalla storia di `main`), "Memoria c
 
 ```bash
 # nuovo progetto parallelo partendo dallo stato completo del fork
-git clone https://github.com/cybermerlo/mcp-legal-it mcp-legal-it-strumenti
+git clone https://github.com/cybermerlo/icodici-cassazione mcp-legal-it-strumenti
 cd mcp-legal-it-strumenti && git switch -c strumenti 64f288d
 ```
 
