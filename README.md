@@ -39,6 +39,9 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 MCP_TRANSPORT=http .venv/bin/python serve_studio.py
 ```
 
+Con la variabile `MCP_URL_TOKEN` impostata l'endpoint MCP risponde solo su `/mcp/<chiave>`
+(o su `/mcp` con `Authorization: Bearer <chiave>`); senza, è aperto.
+
 Docker: `docker compose up` (porta 8000). Il deploy dello Studio (Coolify) e le differenze
 dal progetto originario sono descritti in [`STUDIO.md`](STUDIO.md).
 

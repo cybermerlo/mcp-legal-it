@@ -19,7 +19,7 @@
 ## Struttura
 
 ```
-├── serve_studio.py            # entrypoint di produzione: /healthz, LEGAL_TAGS, stateless, malloc_trim
+├── serve_studio.py            # entrypoint di produzione: /healthz, chiave nell'indirizzo, stateless, malloc_trim
 ├── run_server.py              # entrypoint stdio/http generico → plugin/server/run_server.py
 ├── src -> plugin/server/src   # symlink storico, i path restano quelli dell'upstream
 └── plugin/server/src/
@@ -34,6 +34,7 @@
         ├── italgiure/client.py  # Solr, PDF ufficiale, formattazione
         ├── brocardi/client.py   # massime Brocardi → riferimenti Cassazione
         ├── visualex/map.py      # resolve_atto(): solo il resolver dei nomi degli atti
+        ├── _chiave.py           # [fork] /mcp/<chiave> o Bearer: protezione dell'endpoint MCP
         ├── _http.py, _paging.py, _cache.py, _sources.py, _result.py
 ```
 
@@ -59,6 +60,8 @@ La logica sta nelle funzioni `_impl` (testabili senza MCP), che restituiscono `S
 
 - **Sentenze con numero noto**: `leggi_sentenza(numero, anno)` — mai web search, mai numeri a memoria.
 - Il server **non** contiene il testo delle norme: per quello si usa un connettore normativo.
+- Con `MCP_URL_TOKEN` impostata l'endpoint MCP risponde solo su `/mcp/<chiave>` (o `/mcp` con Bearer):
+  tutto il resto sotto `/mcp` è 404, e la chiave non deve mai finire nei log (STUDIO.md § 10).
 - Le modifiche proprie del fork sono marcate `[fork]` nel codice: tenerle circoscritte aiuta il
   confronto con l'upstream.
 

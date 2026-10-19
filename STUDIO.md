@@ -300,3 +300,38 @@ si era partiti, oggi la v2.16.0):
 git fetch upstream
 git merge-file <file-nostro> <copia-upstream-v2.16.0> <copia-upstream-nuova>
 ```
+
+## 10. Chiave nell'indirizzo (2026-10-19)
+
+Il server entra nel plugin **iCodici** (repository privato `icodici-plugin`), che
+lo distribuisce anche fuori dallo studio. Finora chiunque conoscesse il
+sottodominio poteva usarlo. Ora, con la variabile **`MCP_URL_TOKEN`** impostata,
+l'endpoint MCP risponde solo:
+
+- su **`/mcp/<chiave>`**, per i connettori dell'app desktop di Claude, che
+  accettano solo un URL;
+- su **`/mcp`** con `Authorization: Bearer <chiave>`, per Claude Code.
+
+Tutto il resto sotto `/mcp`, chiave sbagliata compresa, risponde **404**. Le rotte
+di scoperta OAuth restano 404 (un 401 farebbe cercare ai client un login OAuth);
+`/healthz` resta libero e dice `"protezione": "chiave"` oppure `"nessuna"`.
+È lo stesso schema dei server Archivio di merito e CCNL.
+
+Il controllo sta in `src/lib/_chiave.py` (middleware ASGI, confronto a tempo
+costante), agganciato in `serve_studio.py`. Il percorso viene riscritto in `/mcp`
+**sul posto**, prima che uvicorn scriva il log degli accessi: nel log compare
+`POST /mcp`, mai la chiave (verificato). Una chiave **sbagliata** invece finisce
+nel log, come negli altri server.
+
+Senza `MCP_URL_TOKEN` il server si comporta come prima: il codice si può
+pubblicare prima di impostare la variabile.
+
+**Una chiave per tutto il plugin.** Il valore non è proprio di questo server: su
+Coolify sta in una variabile condivisa (`ICODICI_PLUGIN_TOKEN`) che ogni server
+del plugin richiama. Revocare un utente esterno significa togliergli l'accesso al
+repository del plugin, cambiare la variabile condivisa, rideployare i server e
+pubblicare una nuova versione del plugin con la chiave nuova (procedura in
+`REVOCA.md` del repository del plugin).
+
+Test: `tests/unit/test_chiave.py` (14 casi, compresa una `initialize` MCP vera
+con e senza chiave).

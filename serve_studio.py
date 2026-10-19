@@ -30,7 +30,9 @@ sys.path.insert(0, BASE)
 os.chdir(BASE)
 
 from fastmcp.server.middleware import Middleware  # noqa: E402
+from src.lib._chiave import ChiaveNellIndirizzo  # noqa: E402
 from src.server import mcp  # noqa: E402
+from starlette.middleware import Middleware as ASGIMiddleware  # noqa: E402
 from starlette.requests import Request  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
 
@@ -38,6 +40,13 @@ from starlette.responses import JSONResponse  # noqa: E402
 # LEGAL_TAGS ha la precedenza su LEGAL_PROFILE (che src/server.py ha gia'
 # applicato al momento dell'import). Vuoto o assente = tutti i tool.
 _tags = {t.strip() for t in os.environ.get("LEGAL_TAGS", "").split(",") if t.strip()}
+
+# --- chiave nell'indirizzo ----------------------------------------------------
+# Con MCP_URL_TOKEN impostata l'endpoint MCP risponde solo su /mcp/<chiave> (o su
+# /mcp con "Authorization: Bearer <chiave>"); tutto il resto sotto /mcp e' 404.
+# Vuota = nessuna protezione, come prima. Vedi src/lib/_chiave.py e STUDIO.md § 10.
+_MCP_PATH = os.environ.get("MCP_PATH", "/mcp")
+_chiave = os.environ.get("MCP_URL_TOKEN", "").strip()
 if _tags:
     mcp.include_tags = _tags
 
@@ -75,7 +84,11 @@ if _malloc_trim is not None:
 @mcp.custom_route("/healthz", methods=["GET"])
 async def healthz(request: Request) -> JSONResponse:
     """Sonda per Coolify e per il monitor dello studio. Deve restare a costo zero."""
-    payload = {"status": "ok", "tags": sorted(_tags) if _tags else "tutti"}
+    payload = {
+        "status": "ok",
+        "tags": sorted(_tags) if _tags else "tutti",
+        "protezione": "chiave" if _chiave else "nessuna",
+    }
     try:
         # get_tools() restituisce il registro COMPLETO: include_tags viene
         # applicato piu' a valle, in fase di tools/list. Qui rifacciamo il conto
@@ -94,14 +107,16 @@ async def healthz(request: Request) -> JSONResponse:
 
 if __name__ == "__main__":
     print(
-        f"[studio] tag attivi: {sorted(_tags) if _tags else 'TUTTI'}",
+        f"[studio] tag attivi: {sorted(_tags) if _tags else 'TUTTI'}; "
+        f"protezione: {'chiave nell indirizzo' if _chiave else 'NESSUNA'}",
         flush=True,
     )
     mcp.run(
         transport=os.environ.get("MCP_TRANSPORT", "http"),
         host=os.environ.get("MCP_HOST", "0.0.0.0"),
         port=int(os.environ.get("MCP_PORT", "8000")),
-        path=os.environ.get("MCP_PATH", "/mcp"),
+        path=_MCP_PATH,
+        middleware=[ASGIMiddleware(ChiaveNellIndirizzo, chiave=_chiave, percorso=_MCP_PATH)],
         # Senza stato: ogni richiesta ha il suo trasporto, che muore con lei.
         # Con le sessioni, FastMCP 2.x non passa all'SDK alcun timeout di
         # inattivita' e Claude non chiude mai quelle che apre (nessuna DELETE):
