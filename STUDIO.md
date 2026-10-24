@@ -323,6 +323,12 @@ costante), agganciato in `serve_studio.py`. Il percorso viene riscritto in `/mcp
 `POST /mcp`, mai la chiave (verificato). Una chiave **sbagliata** invece finisce
 nel log, come negli altri server.
 
+I client che cercano un login OAuth chiedono percorsi che contengono l'URL intero,
+chiave compresa: al click su «Collega» di un connettore di plugin l'app desktop
+ha chiesto `/.well-known/oauth-protected-resource/mcp/<chiave>` e simili, e la
+chiave è finita nel log (2026-10-24). Ora in qualunque percorso la chiave viene
+sostituita da `***` prima del log, e la risposta resta 404.
+
 Senza `MCP_URL_TOKEN` il server si comporta come prima: il codice si può
 pubblicare prima di impostare la variabile.
 
@@ -333,5 +339,5 @@ repository del plugin, cambiare la variabile condivisa, rideployare i server e
 pubblicare una nuova versione del plugin con la chiave nuova (procedura in
 `REVOCA.md` del repository del plugin).
 
-Test: `tests/unit/test_chiave.py` (14 casi, compresa una `initialize` MCP vera
+Test: `tests/unit/test_chiave.py` (17 casi, compresa una `initialize` MCP vera
 con e senza chiave).

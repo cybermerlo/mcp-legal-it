@@ -53,6 +53,14 @@ class ChiaveNellIndirizzo:
         path = scope["path"]
         base = self.percorso
         if path != base and not path.startswith(base + "/"):
+            if self.chiave in path:
+                # I client che cercano un login OAuth chiedono percorsi che
+                # contengono l'URL intero, chiave compresa (es.
+                # /.well-known/oauth-protected-resource/mcp/<chiave>): 404 come
+                # senza chiave, ma senza lasciarla nel log.
+                self._maschera(scope)
+                await PlainTextResponse("Not Found", status_code=404)(scope, receive, send)
+                return
             await self.app(scope, receive, send)
             return
 
@@ -68,4 +76,11 @@ class ChiaveNellIndirizzo:
             await self.app(scope, receive, send)
             return
 
+        self._maschera(scope)
         await PlainTextResponse("Not Found", status_code=404)(scope, receive, send)
+
+    def _maschera(self, scope: Scope) -> None:
+        """Toglie la chiave dal percorso che uvicorn scrivera' nel log."""
+        if self.chiave in scope["path"]:
+            scope["path"] = scope["path"].replace(self.chiave, "***")
+            scope["raw_path"] = scope["path"].encode()

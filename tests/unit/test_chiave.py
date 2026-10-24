@@ -68,6 +68,49 @@ class TestFuoriDaMcp:
         assert _client().get("/mcpx").status_code == 404
 
 
+class TestChiaveMaiNelLog:
+    """Il log di uvicorn legge scope["path"]: dopo il middleware non deve contenere la chiave."""
+
+    def _percorso_registrato(self, path: str) -> str:
+        import asyncio
+
+        async def interna(scope, receive, send):
+            await PlainTextResponse("ok")(scope, receive, send)
+
+        mw = ChiaveNellIndirizzo(interna, chiave=CHIAVE, percorso="/mcp")
+        scope = {"type": "http", "method": "GET", "path": path, "raw_path": path.encode(),
+                 "headers": [], "query_string": b""}
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(_message):
+            pass
+
+        asyncio.run(mw(scope, receive, send))
+        return scope["path"]
+
+    def test_scoperta_oauth_con_chiave_nel_percorso(self):
+        # Le richieste viste nel log del 2026-10-24 al click su "Collega" nell'app desktop.
+        for path in (
+            f"/.well-known/oauth-protected-resource/mcp/{CHIAVE}",
+            f"/.well-known/oauth-authorization-server/mcp/{CHIAVE}",
+            f"/.well-known/openid-configuration/mcp/{CHIAVE}",
+            f"/mcp/{CHIAVE}/.well-known/openid-configuration",
+        ):
+            registrato = self._percorso_registrato(path)
+            assert CHIAVE not in registrato, path
+            assert "***" in registrato
+
+    def test_chiave_giusta_registrata_come_mcp(self):
+        assert self._percorso_registrato(f"/mcp/{CHIAVE}") == "/mcp"
+
+    def test_scoperta_con_chiave_resta_404(self):
+        c = _client()
+        assert c.get(f"/.well-known/oauth-protected-resource/mcp/{CHIAVE}").status_code == 404
+        assert c.get(f"/mcp/{CHIAVE}/.well-known/openid-configuration").status_code == 404
+
+
 class TestSenzaChiave:
     def test_chiave_vuota_non_protegge(self):
         assert _client(chiave="").post("/mcp").status_code == 200
